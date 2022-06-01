@@ -1,8 +1,9 @@
 #from clients.python.niryo_one_tcp_client.enums import RobotAxis
 from niryo_one_tcp_client import *
+import math
 
 class Niryo:
-    def __init__(self, ip: str="10.10.10.10", grip: RobotTool= RobotTool.GRIPPER_2, arm_velocity: int=30):
+    def __init__(self, ip: str="10.10.10.10", grip: RobotTool= RobotTool.GRIPPER_2, arm_velocity: int=30, z_offset_cam: float=0.03, z_offset_conveyor: float=0, z_offset_object:float=0.1):
         self.n = NiryoOneClient()
         self.grip = grip
         print("[!] Connecting to {} ..".format(ip))
@@ -25,6 +26,9 @@ class Niryo:
         self.stand_by = (0.11, 0.0, 0.4, 0., 1., 0.0)
         self.grab_mode = (0.11, 0.0, 0.4, 0., 1.35, 0.0)
         self.position = self.stand_by
+        self.z_offset_cam = z_offset_cam
+        self.z_offset_conveyor = z_offset_conveyor
+        self.z_offset_object = z_offset_object
 
     @property
     def position(self):
@@ -36,8 +40,8 @@ class Niryo:
     
     @position.setter
     def position(self, value):
-        x, y, z, roll, pitch, yaw = value
-        status, data = self.n.move_pose(x, y, z, roll, pitch, yaw)
+        self.x, self.y, self.z, self.roll, self.pitch, self.yaw = value
+        status, data = self.n.move_pose(self.x, self.y, self.z, self.roll, self.pitch, self.yaw)
         if status is False:
             print("Error: " + data)
         else:
@@ -75,42 +79,42 @@ class Niryo:
         self.n.change_tool(tool)
         print("[*] Done")
 
-    def increment_pos_x(self, value=0.10):
+    def increment_pos_x(self, value: float=0.10):
         status, data = self.n.shift_pose(RobotAxis.X, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
 
-    def increment_pos_y(self, value=0.15):
+    def increment_pos_y(self, value: float=0.15):
         status, data = self.n.shift_pose(RobotAxis.Y, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
     
-    def increment_pos_z(self, value=0.1):
+    def increment_pos_z(self, value: float=0.1):
         status, data = self.n.shift_pose(RobotAxis.Z, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
 
-    def increment_pos_pitch(self, value=0.2):
+    def increment_pos_pitch(self, value: float=0.2):
         status, data = self.n.shift_pose(RobotAxis.PITCH, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
 
-    def increment_pos_roll(self, value=0.3):
+    def increment_pos_roll(self, value: float=0.3):
         status, data = self.n.shift_pose(RobotAxis.ROLL, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
 
-    def increment_pos_yaw(self, value=0.3):
+    def increment_pos_yaw(self, value: float=0.3):
         status, data = self.n.shift_pose(RobotAxis.YAW, value)
         if status is False:
             print("Error: " + data)
@@ -146,13 +150,30 @@ class Niryo:
     def close_gripper(self, grip_speed=400):
         self.n.close_gripper(self.grip, grip_speed)
 
-    def move_to_roi(self, x_,y_,z_, ratio=0.2):
-        # move to region of interest ex : x = 22mm y = 33mm z = 650mm
+    def calc_target(self, x_ia: float, y_ia: float, z_ia: float):
+        """  calc the coordinates without taking into acount the offset between the end effector and the cam """
+        x_roi = math.sqrt(z_ia**2 - (self.z - self.z_offset_conveyor)**2)
+        y_roi = y_ia
+        z_roi = self.z - self.z_offset_conveyor - self.z_offset_object
+        return x_roi, y_roi, -z_roi
+
+    def move_to_roi(self, x_ia: int,y_ia: int,z_ia: int, ratio: float=0.2, z_offset_cam: int=None, z_offset_conveyor: float=None):
+        """ move to roi based on depthai OAK-D 2.5D camera"""
+        
+        if z_offset_conveyor != None:
+            self.z_offset_conveyor = z_offset_conveyor
+        if z_offset_cam != None:
+            self.z_offset_cam = z_offset_cam
+
+        x_, y_, z_ = self.calc_target(x_ia, y_ia, z_ia)
+        print("[*] Estimated position ({},{},{}) m \nwith z_offset_conveyor {}, z_offset_cam {} and z_offset_object {}".format(x_, y_, z_, self.z_offset_conveyor, self.z_offset_cam, self.z_offset_object))
+        # move to region of interest ex : x = 0.022m y = 0.033m z = 0.650m
         self.open_gripper()
         self.increment_pos_x(x_)
         self.increment_pos_y(y_)
         self.increment_pos_z(z_)
-
+        self.close_gripper()
+        self.position = self.stand_by
         
 
 #n = Niryo()
