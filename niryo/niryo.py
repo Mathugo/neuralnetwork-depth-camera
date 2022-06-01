@@ -22,7 +22,9 @@ class Niryo:
         else:
             print("Error: " + data)
             self.pose = None
-        self.position = (0.2, 0.0, 0.2, 0., 1.57, 0.0)
+        self.stand_by = (0.11, 0.0, 0.4, 0., 1., 0.0)
+        self.grab_mode = (0.11, 0.0, 0.4, 0., 1.35, 0.0)
+        self.position = self.stand_by
 
     @property
     def position(self):
@@ -40,8 +42,12 @@ class Niryo:
             print("Error: " + data)
         else:
             print("[*] Moved successfully")
-
-
+    """ TODO setter pitch, roll, yaw, x, y, z"""
+    """
+        @pitch.setter
+        def pitch(self, value):
+            self.n.
+    """
     def calibration(self) -> None:
         if self.n.need_calibration():
             print("[!] Starting calibration ..")
@@ -112,7 +118,7 @@ class Niryo:
             print("[*] Shifted correctly")
     
     # Going back to initial pose
-    def go_initial_pose(self):
+    def go_to_initial_pose(self):
         if self.initial_pose is not None:
             status, data = self.n.move_pose(*self.n.pose_to_list(self.initial_pose))
             if status is False:
@@ -139,6 +145,15 @@ class Niryo:
 
     def close_gripper(self, grip_speed=400):
         self.n.close_gripper(self.grip, grip_speed)
+
+    def move_to_roi(self, x_,y_,z_, ratio=0.2):
+        # move to region of interest ex : x = 22mm y = 33mm z = 650mm
+        self.open_gripper()
+        self.increment_pos_x(x_)
+        self.increment_pos_y(y_)
+        self.increment_pos_z(z_)
+
+        
 
 #n = Niryo()
 #print(n.position)
