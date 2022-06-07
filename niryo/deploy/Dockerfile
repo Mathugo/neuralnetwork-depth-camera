@@ -24,6 +24,3 @@ WORKDIR /app
 ADD main.py /app/
 ADD niryo.py /app/
 CMD python3 main.py
-
-
-

@@ -165,6 +165,7 @@ class Niryo:
         self.increment_pos_z(z_)
         self.close_gripper()
         self.position = self.stand_by
+    
         
 #467 -25 3
 #n = Niryo()
