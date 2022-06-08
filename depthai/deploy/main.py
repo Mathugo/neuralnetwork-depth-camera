@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from object_detection import ObjectDetection
+from runtime.object_detection import ObjectDetection
 import argparse
 
 class Args:
