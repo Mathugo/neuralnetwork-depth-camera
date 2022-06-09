@@ -1,0 +1,6 @@
+depthai
+argparse
+uvicorn
+json
+pathlib
+fastapi

@@ -130,7 +130,7 @@ class ObjectDetection(object):
         print("[*] Done")
 
     @staticmethod
-    def draw(rgb_frame: cv2.Mat, depth_frame: cv2.Mat, detections, labels, fps: int=0, show: bool=True, color: tuple=(255, 255, 255)):
+    def draw(rgb_frame, depth_frame, detections, labels, fps: int=0, show: bool=True, color: tuple=(255, 255, 255)):
         """ draw detection on frame """
         height = rgb_frame.shape[0]
         width  = rgb_frame.shape[1]

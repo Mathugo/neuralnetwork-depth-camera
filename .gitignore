@@ -2,7 +2,7 @@
 depthai-python
 segmentation/data-science-bowl-2018.zip
 segmentation/vgg16.h5
-
+segmentation/.DS_Store
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

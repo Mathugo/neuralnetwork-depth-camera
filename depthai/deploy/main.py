@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from runtime.object_detection import ObjectDetection
 import argparse
+from api import app
 
 class Args:
     @staticmethod
@@ -22,6 +23,7 @@ class App(object):
     def __init__(self) -> None:
         self.args = Args.get_args()
         self.od = ObjectDetection(self.args)
+        app.start()
 
     def configure(self) -> None:
         self.od.configure_pipeline()
