@@ -1,7 +1,6 @@
 depthai
 argparse
 uvicorn
-json
 pathlib
 fastapi
 paho-mqtt
@@ -12,3 +11,4 @@ setuptools
 Cython 
 pyparsing 
 numpy 
+python-multipart
