@@ -1,0 +1,14 @@
+depthai
+argparse
+uvicorn
+json
+pathlib
+fastapi
+paho-mqtt
+asyncio
+jsonpickle 
+catkin_pkg 
+setuptools
+Cython 
+pyparsing 
+numpy 
