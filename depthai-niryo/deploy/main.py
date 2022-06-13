@@ -1,9 +1,10 @@
-#!/usr/bin/env python3
+import argparse, sys 
+sys.path.append("/app/build/python_tcp_client")
 from src.runtime.object_detection import ObjectDetection
 from src.mqtt.client import Mqtt_Client
 from src.api import app
 from src.niryo import Niryo
-import argparse
+
 
 class Args:
     @staticmethod
@@ -11,10 +12,10 @@ class Args:
         """ parse arguments to perform object detection with depthai """
 
         parser = argparse.ArgumentParser()
-        parser.add_argument("-m", "--model", help="Provide model name for inference",
+        parser.add_argument("-m", "--model", help="Provide model name for inference (models located in deploy/models)",
                             default='yolov5m_default_openvino_2021.4_6shave.blob', type=str)
-        parser.add_argument("-c", "--config", help="Provide json config for inference",
-                            default='yolov5', type=str),
+        parser.add_argument("-c", "--config", help="Provide json config for inference (configs located in deploy/configs)",
+                            default='yolov5.json', type=str),
         parser.add_argument("-mb", "--mqtt_broker", help="Provide the address of the mqtt broker", 
                             default='test.fr', type=str),
         parser.add_argument("-mt", "--mqtt_topic", help="Provide the topic for the mqtt client",
@@ -30,7 +31,7 @@ class App(object):
         """ start depthai, api, niryo"""
         self.args = Args.get_args()
         self._od = ObjectDetection(self.args)
-        self._ni = Niryo()
+        #self._ni = Niryo()
         self._api = None
         self._mqtt_client = None
         #self.mqtt_client = Mqtt_Client(self.args.mqtt_broker, self.args.mqtt_topic)
