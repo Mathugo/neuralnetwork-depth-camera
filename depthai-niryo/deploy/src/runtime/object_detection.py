@@ -157,10 +157,10 @@ class ObjectDetection(object):
             cv2.imshow("depth", depth_frame)
             cv2.imshow("rgb", rgb_frame)
     
-    async def run(self) -> None:
+    def run(self) -> None:
         print("[!] Run started")
         # Connect to device and start pipeline
-        with dai.Device(self.pipeline) as device:
+        with dai.Device(self.pipeline, usb2Mode=True) as device:
 
             # Output queues will be used to get the rgb frames and nn data from the outputs defined above
             previewQueue = device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
