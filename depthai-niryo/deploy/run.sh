@@ -1,5 +1,4 @@
-docker run -it -p 40001:40001 --net=host \
-    -ti \
+docker run -it -p 40001:40001 --net=host -ti \
   --env MQTT_BROKER="test.fr" \
   --env MQTT_TOPIC="results/object_detection" \
   --env MODEL=yolov5_gear_openvino_2021.4_4shave_pruned.blob \

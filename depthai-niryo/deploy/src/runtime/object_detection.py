@@ -1,18 +1,20 @@
+import os,sys
+import cv2
 import argparse
 import json
 from pathlib import Path
 import string
 import time
-import cv2
-import os
 import depthai as dai
+from ..niryo import Niryo
 
 class ObjectDetection(object):
-    def __init__(self, args: argparse.ArgumentParser, model_basename: string="models", config_basename: string="config") -> None:
+    def __init__(self, args: dict, niryo: Niryo, model_basename: string="models", config_basename: string="config") -> None:
         """ get initial config based on given files """
         # parse config
         self.args = args
-        self.configPath = Path(os.path.join(config_basename, args.config))
+        self._ni = niryo
+        self.configPath = Path(os.path.join(config_basename, args["config"]))
         if not self.configPath.exists():
             raise ValueError("Path {} does not exist!".format(self.configPath))
 
@@ -39,11 +41,12 @@ class ObjectDetection(object):
         self.labels = self.nnMappings.get("labels", {})
 
         # get model path
-        self.nnPath = Path(os.path.join(model_basename, args.model))
+        self.nnPath = Path(os.path.join(model_basename, args["model"]))
         if not Path(self.nnPath).exists():
             raise ValueError("Path {} does not exist!".format(self.nnPath))
         # sync outputs
         self.syncNN = True
+        print("[*] Model {} loaded with config {}".format(os.path.basename(self.nnPath), os.path.basename(self.configPath)))
         
     def configure_pipeline(self) -> None:
         """ configure the video pipeline """
@@ -103,8 +106,8 @@ class ObjectDetection(object):
         self.spatialDetectionNetwork.setBlobPath(self.nnPath)
         self.spatialDetectionNetwork.setNumInferenceThreads(2)
         self.spatialDetectionNetwork.input.setBlocking(False)
-        self.spatialDetectionNetwork.setDepthLowerThreshold(self.args.threshold_down)
-        self.spatialDetectionNetwork.setDepthUpperThreshold(self.args.threshold_up)
+        self.spatialDetectionNetwork.setDepthLowerThreshold(int(self.args["threshold_down"]))
+        self.spatialDetectionNetwork.setDepthUpperThreshold(int(self.args["threshold_up"]))
 
         # TODO what is this parameter doing ?
         self.spatialDetectionNetwork.setBoundingBoxScaleFactor(0.5)
@@ -129,7 +132,7 @@ class ObjectDetection(object):
         print("[*] Done")
 
     @staticmethod
-    def draw(rgb_frame, depth_frame, detections, labels, fps: int=0, show: bool=True, color: tuple=(255, 255, 255)):
+    def draw(rgb_frame, depth_frame, detections, labels, fps: int=0, show: bool=False, color: tuple=(255, 255, 255)):
         """ draw detection on frame """
         height = rgb_frame.shape[0]
         width  = rgb_frame.shape[1]
@@ -149,6 +152,7 @@ class ObjectDetection(object):
             cv2.putText(rgb_frame, f"Y: {int(detection.spatialCoordinates.y)} mm", (x1 + 10, y1 + 65), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
             cv2.putText(rgb_frame, f"Z: {int(detection.spatialCoordinates.z)} mm", (x1 + 10, y1 + 80), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
 
+            print("[*] Object Position x {} y {} z {} class {}".format(detection.spatialCoordinates.x, detection.spatialCoordinates.y, detection.spatialCoordinates.z, detection.label))
             cv2.rectangle(rgb_frame, (x1, y1), (x2, y2), color, cv2.FONT_HERSHEY_SIMPLEX)
 
         cv2.putText(rgb_frame, "NN fps: {:.2f}".format(fps), (2, rgb_frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color)
@@ -208,7 +212,6 @@ class ObjectDetection(object):
                         ymax = int(bottomRight.y)
 
                         cv2.rectangle(depthFrameColor, (xmin, ymin), (xmax, ymax), color, cv2.FONT_HERSHEY_SCRIPT_SIMPLEX)
-
                 # If the frame is available, draw bounding boxes on it and show the frame
                 ObjectDetection.draw(frame, depthFrameColor, detections, self.labels, fps=fps, color=color)
 

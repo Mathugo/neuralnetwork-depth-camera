@@ -1,13 +1,13 @@
 #from clients.python.niryo_one_tcp_client.enums import RobotAxis
 #from niryo_one_python_api.niryo_one_api import *
 from niryo_one_tcp_client import *
-import math
+import math, string
 
 class Niryo:
-    def __init__(self, grip: RobotTool= RobotTool.GRIPPER_2, arm_velocity: int=30, z_offset_conveyor: float=0, z_offset_object:float=0.105):
+    def __init__(self, ip: string="localhost", grip: RobotTool= RobotTool.GRIPPER_2, arm_velocity: int=30, z_offset_conveyor: float=0, z_offset_object:float=0.105):
         self.n = NiryoOneClient()
         self.grip = grip
-        self.n.connect("127.0.0.1")
+        self.n.connect(ip)
         print("[*] Calibrating the robot ..")
         status, data = self.n.calibrate(CalibrateMode.AUTO)
         if status:

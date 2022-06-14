@@ -14,23 +14,24 @@ RUN python3 -m pip install -r /app/requirements.txt
 ENV PYTHONUNBUFFERED 1
 
 # niryo
-RUN apt-get install git python-rospy
-ADD src/niryo /app/src/niryo
-ADD build/python_tcp_client /app/src/niryo/python_tcp_client
-WORKDIR /app/src/niryo/python_tcp_client
+#RUN apt-get install git python-rospy
+ADD build/python_tcp_client /app/build/python_tcp_client
+WORKDIR /app/build/python_tcp_client
 RUN python3 setup.py install
-RUN mv /app/src/niryo/python_tcp_client/niryo_one_tcp_client/ /app/src/niryo/niryo_one_tcp_client
+ADD src/niryo /app/src/niryo
 
-
+# code
 ADD src/runtime /app/src/runtime
 ADD src/api /app/src/api
 ADD src/mqtt /app/src/mqtt
 ADD models /app/models
 ADD config /app/config
 ADD main.py /app/
-
+ 
 WORKDIR /app/
+
 # tcp port for niryo
 EXPOSE 40001
 
-#CMD python3 main.py --model $MODEL --config $CONFIG --mqtt_broker $MQTT_BROKER --mqtt_topic $MQTT_TOPIC
+ENTRYPOINT ["/bin/bash", "-l", "-c"]
+CMD ["./main.py"]
