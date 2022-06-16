@@ -1,5 +1,5 @@
 from fastapi import UploadFile, APIRouter
-from ..utils.files import write_file
+from ..utils import write_file
 import os
 
 router = APIRouter()

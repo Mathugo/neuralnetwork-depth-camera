@@ -1,4 +1,4 @@
-import os,sys
+import os,sys, time
 import cv2
 import argparse
 import json
@@ -70,6 +70,9 @@ class ObjectDetection(object):
         self.xoutNN.setStreamName("detections")
         self.xoutBoundingBoxDepthMapping.setStreamName("boundingBoxDepthMapping")
         self.xoutDepth.setStreamName("depth")
+
+        # Increase fps : splitting device-sent XLink packets, in bytes
+        self.pipeline.setXLinkChunkSize(0)
         print("[*] Done ! ")
     
     def configure_properties(self) -> None:
@@ -78,7 +81,7 @@ class ObjectDetection(object):
         self.camRgb.setPreviewSize(self.W, self.H)
 
         """ rgb """
-        self.camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_4_K)
+        self.camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
         self.camRgb.setInterleaved(False)
         self.camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
         self.camRgb.setFps(40)
@@ -132,10 +135,11 @@ class ObjectDetection(object):
         print("[*] Done")
 
     @staticmethod
-    def draw(rgb_frame, depth_frame, detections, labels, fps: int=0, show: bool=False, color: tuple=(255, 255, 255)):
+    def draw(exec_time: float, rgb_frame, depth_frame, detections, labels, fps: int=0, show: bool=False, color: tuple=(255, 255, 255)):
         """ draw detection on frame """
         height = rgb_frame.shape[0]
         width  = rgb_frame.shape[1]
+        print("[*] {} detections".format(len(detections)))
         for detection in detections:
             # Denormalize bounding box
             x1 = int(detection.xmin * width)
@@ -152,7 +156,7 @@ class ObjectDetection(object):
             cv2.putText(rgb_frame, f"Y: {int(detection.spatialCoordinates.y)} mm", (x1 + 10, y1 + 65), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
             cv2.putText(rgb_frame, f"Z: {int(detection.spatialCoordinates.z)} mm", (x1 + 10, y1 + 80), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
 
-            print("[*] Object Position x {} y {} z {} class {}".format(detection.spatialCoordinates.x, detection.spatialCoordinates.y, detection.spatialCoordinates.z, detection.label))
+            print("[*] Exec Time {}ms\nObject Position ( x {}mm ; y {}mm ; z {}mm )\nclass {}\n".format(exec_time, detection.spatialCoordinates.x, detection.spatialCoordinates.y, detection.spatialCoordinates.z, detection.label))
             cv2.rectangle(rgb_frame, (x1, y1), (x2, y2), color, cv2.FONT_HERSHEY_SIMPLEX)
 
         cv2.putText(rgb_frame, "NN fps: {:.2f}".format(fps), (2, rgb_frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color)
@@ -163,8 +167,9 @@ class ObjectDetection(object):
     
     def run(self) -> None:
         print("[!] Run started")
+        global mustStop
         # Connect to device and start pipeline
-        with dai.Device(self.pipeline, usb2Mode=True) as device:
+        with dai.Device(self.pipeline) as device:
 
             # Output queues will be used to get the rgb frames and nn data from the outputs defined above
             previewQueue = device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
@@ -176,8 +181,9 @@ class ObjectDetection(object):
             counter = 0
             fps = 0
             color = (255, 255, 255)
-
-            while True:
+            
+            while not mustStop:
+                milli_start = int(round(time.time() * 1000))
                 inPreview = previewQueue.get()
                 inDet = detectionNNQueue.get()
                 depth = depthQueue.get()
@@ -197,6 +203,9 @@ class ObjectDetection(object):
                     startTime = current_time
 
                 detections = inDet.detections
+                milli_end = int(round(time.time() * 1000))
+                exec_time = milli_end - milli_start
+
                 if len(detections) != 0:
                     boundingBoxMapping = xoutBoundingBoxDepthMappingQueue.get()
                     roiDatas = boundingBoxMapping.getConfigData()
@@ -213,7 +222,8 @@ class ObjectDetection(object):
 
                         cv2.rectangle(depthFrameColor, (xmin, ymin), (xmax, ymax), color, cv2.FONT_HERSHEY_SCRIPT_SIMPLEX)
                 # If the frame is available, draw bounding boxes on it and show the frame
-                ObjectDetection.draw(frame, depthFrameColor, detections, self.labels, fps=fps, color=color)
+                if counter % 10 == 0:
+                    ObjectDetection.draw(exec_time, frame, depthFrameColor, detections, self.labels, fps=fps, color=color)
 
                 if cv2.waitKey(1) == ord('q'):
                     print("[*] Exiting ..")

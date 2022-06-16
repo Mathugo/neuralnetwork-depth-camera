@@ -1,1 +1,1 @@
-from . import files
+from .files import write_file

@@ -24,6 +24,7 @@ ADD src/niryo /app/src/niryo
 ADD src/runtime /app/src/runtime
 ADD src/api /app/src/api
 ADD src/mqtt /app/src/mqtt
+ADD src/app /app/src/app
 ADD models /app/models
 ADD config /app/config
 ADD main.py /app/
@@ -32,6 +33,9 @@ WORKDIR /app/
 
 # tcp port for niryo
 EXPOSE 40001
+
+# port for fastapi
+EXPOSE 5000
 
 ENTRYPOINT ["/bin/bash", "-l", "-c"]
 CMD ["./main.py"]
