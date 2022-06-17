@@ -31,11 +31,5 @@ ADD main.py /app/
  
 WORKDIR /app/
 
-# tcp port for niryo
-EXPOSE 40001
-
-# port for fastapi
-EXPOSE 5000
-
 ENTRYPOINT ["/bin/bash", "-l", "-c"]
 CMD ["./main.py"]

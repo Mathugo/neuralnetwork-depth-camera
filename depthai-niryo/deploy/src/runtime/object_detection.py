@@ -8,13 +8,15 @@ import time
 import depthai as dai
 from ..niryo import Niryo
 
+
 class ObjectDetection(object):
-    def __init__(self, args: dict, niryo: Niryo, model_basename: string="models", config_basename: string="config") -> None:
+    def __init__(self, args: dict, model_basename: string="models", config_basename: string="config", niryo: Niryo=None) -> None:
         """ get initial config based on given files """
         # parse config
         self.args = args
         self._ni = niryo
         self.configPath = Path(os.path.join(config_basename, args["config"]))
+        self.mustStop = os.environ.get("MustStop", "Error")
         if not self.configPath.exists():
             raise ValueError("Path {} does not exist!".format(self.configPath))
 
@@ -167,7 +169,6 @@ class ObjectDetection(object):
     
     def run(self) -> None:
         print("[!] Run started")
-        global mustStop
         # Connect to device and start pipeline
         with dai.Device(self.pipeline) as device:
 
@@ -181,8 +182,9 @@ class ObjectDetection(object):
             counter = 0
             fps = 0
             color = (255, 255, 255)
-            
-            while not mustStop:
+            while self.mustStop != "True" and self.mustStop != "Error":
+                self.mustStop = os.environ.get("MustStop", "Error")
+
                 milli_start = int(round(time.time() * 1000))
                 inPreview = previewQueue.get()
                 inDet = detectionNNQueue.get()
