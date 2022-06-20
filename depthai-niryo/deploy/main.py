@@ -26,6 +26,10 @@ app.include_router(niryo.router)
 
 """ primary endpoints """
 
+@app.get("/")
+def root():
+    return {"message": "NiryoOneApi"}
+
 @app.get("/stop")
 def stop():
     os.environ["MustStop"] = "True"
@@ -57,8 +61,11 @@ async def startup():
 @app.on_event("shutdown")
 def shutdown_event():
     """ code here will run on shutdown """
-    print("[*] Shutting down the app ..")
-    global APP 
+    print("[API] Shutting down the app ..")
+    os.environ["MustStop"] = "True"
+    global APP
+    global app_thread
+    app_thread.join()
     APP.exit() 
 
 def loop():
@@ -69,6 +76,6 @@ def loop():
 
 if __name__ == "__main__":
     # start api then start loop
-    print("[!] API bind to port {}".format(API_PORT))
+    print("[API] bind to port {}".format(API_PORT))
     uvicorn.run("main:app", host="0.0.0.0", port=API_PORT)
 

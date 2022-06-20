@@ -1,20 +1,20 @@
-import os,sys, time
+import os,sys, time, threading, json
 import cv2
-import argparse
-import json
 from pathlib import Path
 import string
 import time
 import depthai as dai
 from ..niryo import Niryo
+from ..mqtt import MqttClient
 
 
 class ObjectDetection(object):
-    def __init__(self, args: dict, model_basename: string="models", config_basename: string="config", niryo: Niryo=None) -> None:
+    def __init__(self, args: dict, model_basename: string="models", config_basename: string="config", niryo: Niryo=None, mqtt_client: MqttClient=None) -> None:
         """ get initial config based on given files """
         # parse config
         self.args = args
         self._ni = niryo
+        self._mqtt_client = mqtt_client
         self.configPath = Path(os.path.join(config_basename, args["config"]))
         self.mustStop = os.environ.get("MustStop", "Error")
         if not self.configPath.exists():
@@ -152,6 +152,7 @@ class ObjectDetection(object):
                 label = labels[detection.label]
             except:
                 label = detection.label
+
             cv2.putText(rgb_frame, str(label), (x1 + 10, y1 + 20), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
             cv2.putText(rgb_frame, "{:.2f}".format(detection.confidence*100), (x1 + 10, y1 + 35), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
             cv2.putText(rgb_frame, f"X: {int(detection.spatialCoordinates.x)} mm", (x1 + 10, y1 + 50), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
@@ -167,65 +168,89 @@ class ObjectDetection(object):
             cv2.imshow("depth", depth_frame)
             cv2.imshow("rgb", rgb_frame)
     
+    def __counter_start(self) -> None:
+        self._startTime = time.monotonic()
+        self._counter = 0
+        self._fps = 0
+
+    def __counter_end(self) -> int:
+        self._counter+=1
+        current_time = time.monotonic()
+        if (current_time - self._startTime) > 1 :
+            self._fps = self._counter / (current_time - self._startTime)
+            self._counter = 0
+            self._startTime = current_time
+
+    def __get_roi(self, detection) -> (int, int, int, int, int):
+        """ get position from detection """
+
+        x1 = int(detection.xmin * self._frame_width)
+        x2 = int(detection.xmax * self._frame_width)
+        y1 = int(detection.ymin * self._frame_height)
+        y2 = int(detection.ymax * self._frame_height)
+        try:
+            label = self.labels[detection.label]
+        except:
+            label = detection.label
+        return x1, x2, y1, y2, label
+    
+    def __get_position(self, detection) -> (float, float, float):
+        return detection.spatialCoordinates.x, detection.spatialCoordinates.y, detection.spatialCoordinates.z
+    
+    def __get_frame(self):
+        """ get frame from opencv pipeline """
+        inPreview = self._previewQueue.get()
+        inDet = self._detectionNNQueue.get()
+        depth = self._depthQueue.get()
+        frame = inPreview.getCvFrame()
+        depthFrame = depth.getFrame()
+        return inDet, frame, depthFrame
+    
+    def __publish_results(self, pos, roi):
+        self._mqtt_client.publish(self._mqtt_client.cam_topic+"/pos", pos)
+        self._mqtt_client.publish(self._mqtt_client.cam_topic+"/roi", roi)
+
     def run(self) -> None:
         print("[!] Run started")
         # Connect to device and start pipeline
         with dai.Device(self.pipeline) as device:
 
             # Output queues will be used to get the rgb frames and nn data from the outputs defined above
-            previewQueue = device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
-            detectionNNQueue = device.getOutputQueue(name="detections", maxSize=4, blocking=False)
-            xoutBoundingBoxDepthMappingQueue = device.getOutputQueue(name="boundingBoxDepthMapping", maxSize=4, blocking=False)
-            depthQueue = device.getOutputQueue(name="depth", maxSize=4, blocking=False)
+            self._previewQueue = device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
+            self._detectionNNQueue = device.getOutputQueue(name="detections", maxSize=4, blocking=False)
+            self._xoutBoundingBoxDepthMappingQueue = device.getOutputQueue(name="boundingBoxDepthMapping", maxSize=4, blocking=False)
+            self._depthQueue = device.getOutputQueue(name="depth", maxSize=4, blocking=False)
 
-            startTime = time.monotonic()
-            counter = 0
-            fps = 0
-            color = (255, 255, 255)
+            self.__counter_start()
+            _, frame, _ = self.__get_frame()
+            self._frame_height = frame.shape[0]
+            self._frame_width  = frame.shape[1]
+            print("[CAM] Height {}, Width {} of rgb frame".format(self._frame_height, self._frame_width))
+        
+            #color = (255, 255, 255)
             while self.mustStop != "True" and self.mustStop != "Error":
                 self.mustStop = os.environ.get("MustStop", "Error")
 
                 milli_start = int(round(time.time() * 1000))
-                inPreview = previewQueue.get()
-                inDet = detectionNNQueue.get()
-                depth = depthQueue.get()
+                # depthFrame values are in millimeters
+                inDet, frame, depthFrame = self.__get_frame()
 
-                frame = inPreview.getCvFrame()
-                depthFrame = depth.getFrame() # depthFrame values are in millimeters
-
-                depthFrameColor = cv2.normalize(depthFrame, None, 255, 0, cv2.NORM_INF, cv2.CV_8UC1)
-                depthFrameColor = cv2.equalizeHist(depthFrameColor)
-                depthFrameColor = cv2.applyColorMap(depthFrameColor, cv2.COLORMAP_HOT)
-
-                counter+=1
-                current_time = time.monotonic()
-                if (current_time - startTime) > 1 :
-                    fps = counter / (current_time - startTime)
-                    counter = 0
-                    startTime = current_time
-
+                fps = self.__counter_end()
                 detections = inDet.detections
                 milli_end = int(round(time.time() * 1000))
                 exec_time = milli_end - milli_start
 
                 if len(detections) != 0:
-                    boundingBoxMapping = xoutBoundingBoxDepthMappingQueue.get()
-                    roiDatas = boundingBoxMapping.getConfigData()
+                    for detection in detections:
+                        x1, x2, y1, y2, label = self.__get_roi(detection)
+                        x, y, z = self.__get_position(detection)
 
-                    for roiData in roiDatas:
-                        roi = roiData.roi
-                        roi = roi.denormalize(depthFrameColor.shape[1], depthFrameColor.shape[0])
-                        topLeft = roi.topLeft()
-                        bottomRight = roi.bottomRight()
-                        xmin = int(topLeft.x)
-                        ymin = int(topLeft.y)
-                        xmax = int(bottomRight.x)
-                        ymax = int(bottomRight.y)
-
-                        cv2.rectangle(depthFrameColor, (xmin, ymin), (xmax, ymax), color, cv2.FONT_HERSHEY_SCRIPT_SIMPLEX)
-                # If the frame is available, draw bounding boxes on it and show the frame
-                if counter % 10 == 0:
-                    ObjectDetection.draw(exec_time, frame, depthFrameColor, detections, self.labels, fps=fps, color=color)
+                        if self._counter % 30 == 0:
+                            pos = "{}:{}:{}:{}".format(label, round(x, 2), round(y, 2), round(z, 2))
+                            roi = "{}:{}:{}:{}:{}".format(label, x1, x2, y1, y2)
+                            print("[*] Exec Time {}ms\nPos ( x {}mm ; y {}mm ; z {}mm )\nclass {}\nROI ({};{};{};{})".format(exec_time, x, y, z, label, x1, x2, y1, y2))
+                            self.__publish_results(pos, roi)
+                        
 
                 if cv2.waitKey(1) == ord('q'):
                     print("[*] Exiting ..")

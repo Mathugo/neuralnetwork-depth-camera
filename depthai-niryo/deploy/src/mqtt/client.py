@@ -10,7 +10,10 @@ class MqttClient(mqtt.Client):
         self._cam_topic = cam_topic
         self._niryo_topic = niryo_topic
         print("[MQTT] Connecting to broker {} with port {} ..".format(broker_addr, broker_port))
-        self.connect(broker_addr, broker_port, keepalive=0, bind_address="")
+        try:
+            self.connect(broker_addr, broker_port, keepalive=0, bind_address="")
+        except:
+            print("[MQTT] Unable to connect to broker {} at port {}".format(broker_addr, broker_port))
         self.loop_start()
         print("[MQTT] Done")
         print("[MQTT] Subscribing to topics {} and {} ..".format(self._cam_topic, self._niryo_topic))
@@ -27,7 +30,7 @@ class MqttClient(mqtt.Client):
     def publish(self, topic: string, msg: string) -> None:
         """ publish a message on a desired subscribed topic"""
         print("[MQTT] Message {} published to broker".format(msg))
-        self._client.publish(topic, msg)
+        #self.publish(topic, msg)
     
     def __filter_msg(self, msg, topic):
         if topic == self._cam_topic:
@@ -74,7 +77,7 @@ class MqttClient(mqtt.Client):
     def quit(self):
         self.disconnect()
         self.loop_stop()
-        print("[MQTT] Exit")
+        print("[MQTT] Disconnected")
 
     def __del__(self):
         self.quit()

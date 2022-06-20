@@ -51,8 +51,8 @@ class App(object):
         self._args = Args.get_args()
         #self._ni = Niryo()
         self._ni = None
-        self._od = ObjectDetection(self._args)
         self._mqtt_client = MqttClient(self._args["mqtt_broker"], self._args["mqtt_cam_topic"], self._args["mqtt_niryo_topic"], int(self._args["mqtt_broker_port"]))
+        self._od = ObjectDetection(self._args, mqtt_client=self._mqtt_client)
 
     def configure(self) -> None:
         self._od.configure_pipeline()
@@ -66,5 +66,6 @@ class App(object):
         self.exit()
     
     def exit(self) -> None: 
-        self._mqtt_client.quit()
+        pass
+        #self._mqtt_client.quit()
         #self._ni.quit()
