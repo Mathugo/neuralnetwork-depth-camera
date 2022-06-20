@@ -7,9 +7,12 @@ import threading
 
 # Global variables
 os.environ["MustStop"] = "False"
+APP = None
 app_thread = None
-
 API_PORT = 4000
+# 400001 --> NIRYO PORT : 4001
+
+""" API """
 
 app = FastAPI(
     title="Orange Rest API for depthai and niryo",
@@ -17,33 +20,49 @@ app = FastAPI(
     version="0.0.1",
 )
 
+""" Router """
 app.include_router(models.router)
 app.include_router(niryo.router)
+
+""" primary endpoints """
 
 @app.get("/stop")
 def stop():
     os.environ["MustStop"] = "True"
-    #app_thread.join()
+    global app_thread
+    global APP
+    app_thread.join()
+    APP.exit()
     return {"message": "App stopped"}
 
 @app.get("/start")
-async def start():
+def start():
     os.environ["MustStop"] = "False"
     global app_thread
     app_thread = threading.Thread(target=loop, args=())
     app_thread.start()
     return {"message": "App started"}
+
+### event startup shutdown 
 
 @app.on_event("startup")
 async def startup():
-    """ code here will be run on startup """
+    """ code here will run on startup """
     os.environ["MustStop"] = "False"
     global app_thread
     app_thread = threading.Thread(target=loop, args=())
     app_thread.start()
     return {"message": "App started"}
 
+@app.on_event("shutdown")
+def shutdown_event():
+    """ code here will run on shutdown """
+    print("[*] Shutting down the app ..")
+    global APP 
+    APP.exit() 
+
 def loop():
+    global APP
     APP = App()
     APP.configure()        
     APP.run()

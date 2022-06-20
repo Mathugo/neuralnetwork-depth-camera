@@ -6,7 +6,7 @@ router = APIRouter()
 
 @router.get("/models/", tags=["models"])
 async def models():
-    return {"message": os.listdir("../../models")}
+    return {"message": os.listdir("../../../models")}
 
 @router.post("/models/upload", tags=["models"])
 async def upload_model(file: UploadFile):

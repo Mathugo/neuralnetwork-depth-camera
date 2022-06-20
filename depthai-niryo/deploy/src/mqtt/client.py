@@ -1,28 +1,43 @@
 import string
 import paho.mqtt.client as mqtt #import the client1
 
-DEFAULT_BROKER_PORT = 1883
 DEFAULT_CLIENT_NAME = "niryo"
 
-class Mqtt_Client(object):
-    def __init__(self, broker_addr: string, cam_topic: string, niryo_topic: string, client_name: string=DEFAULT_CLIENT_NAME, broker_port: int=DEFAULT_BROKER_PORT) -> None:
+class MqttClient(mqtt.Client):
+    def __init__(self, broker_addr: string, cam_topic: string, niryo_topic: string, broker_port: int, client_name: string=DEFAULT_CLIENT_NAME) -> None:
         """ initialize an mqtt client for the niryo"""
-
-        print("[*] Creating {} client ..".format(client_name))
-        self._client = mqtt.Client(client_name)
+        super().__init__(client_name)
         self._cam_topic = cam_topic
         self._niryo_topic = niryo_topic
-        print("[*] Connecting to broker {} ..".format(broker_addr))
-        self._client.connect(broker_addr, broker_port, keepalive=60, bind_address="") 
-        print("[*] Done")
-        print("[*] Subscribing to topics {} and {} ..".format(self._cam_topic, self._niryo_topic))
-        self._client.subscribe(cam_topic)
-        self._client.subscribe(niryo_topic)
-        print("[*] Done")
+        print("[MQTT] Connecting to broker {} with port {} ..".format(broker_addr, broker_port))
+        self.connect(broker_addr, broker_port, keepalive=0, bind_address="")
+        self.loop_start()
+        print("[MQTT] Done")
+        print("[MQTT] Subscribing to topics {} and {} ..".format(self._cam_topic, self._niryo_topic))
+        self.subscribe(cam_topic)
+        self.subscribe(niryo_topic)
+        print("[MQTT] Done")
+
+    def on_message(self, client, userdata, message: string):
+        """ on_message callback for the mqtt client """
+        msg = str(message.payload.decode("utf-8"))
+        print("[MQTT] MSG [ {} ] FROM TOPIC [ {} ] QOS {} FLAG {}".format(msg, message.topic, message.qos, message.retain))
+        self.__filter_msg(msg, message.topic)
+
+    def publish(self, topic: string, msg: string) -> None:
+        """ publish a message on a desired subscribed topic"""
+        print("[MQTT] Message {} published to broker".format(msg))
+        self._client.publish(topic, msg)
     
+    def __filter_msg(self, msg, topic):
+        if topic == self._cam_topic:
+            self._cam_last_msg = msg
+        else:
+            self._niryo_last_msg = msg
+
     @property
     def client(self):
-        return self._client
+        return self
 
     @property
     def cam_topic(self):
@@ -39,17 +54,28 @@ class Mqtt_Client(object):
     @niryo_topic.setter
     def niryo_topic(self, value):
         self._niryo_topic = value
-
-    async def publish(self, topic: string, msg: string) -> None:
-        """ publish a message on a desired subscribed topic"""
-        
-        print("[!] Publishing message {} ..".format(msg))
-        await self._client.publish(topic, msg)
-
-    def on_message(self, client, userdata, message: string):
-        print("message received " ,str(message.payload.decode("utf-8")))
-        print("message topic=",message.topic)
-        print("message qos=",message.qos)
-        print("message retain flag=",message.retain)
     
+    @property
+    def niryo_last_msg(self):
+        return self._niryo_last_msg
+    
+    @niryo_last_msg.setter
+    def niryo_last_msg(self, value):
+        self._niryo_last_msg = value
+    
+    @property
+    def cam_last_msg(self):
+        return self._cam_last_msg
+    
+    @cam_last_msg.setter
+    def cam_last_msg(self, value):
+        self._cam_last_msg = value
+    
+    def quit(self):
+        self.disconnect()
+        self.loop_stop()
+        print("[MQTT] Exit")
+
+    def __del__(self):
+        self.quit()
 

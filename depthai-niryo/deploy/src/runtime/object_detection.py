@@ -53,7 +53,7 @@ class ObjectDetection(object):
     def configure_pipeline(self) -> None:
         """ configure the video pipeline """
         # Create pipeline
-        print("[!] Setting up video pipeline ..")
+        print("\n[!] Setting up video pipeline ..")
         self.pipeline = dai.Pipeline()
 
         # Define sources and outputs for RGB and DEPTH
