@@ -85,7 +85,7 @@ class ObjectDetection(object):
         self.camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
         self.camRgb.setInterleaved(False)
         self.camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
-        self.camRgb.setFps(40)
+        self.camRgb.setFps(60)
 
         """ depth """
         self.monoLeft.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
@@ -225,19 +225,24 @@ class ObjectDetection(object):
             self._frame_height = frame.shape[0]
             self._frame_width  = frame.shape[1]
             print("[CAM] Height {}, Width {} of rgb frame".format(self._frame_height, self._frame_width))
-        
+            count = 0
             #color = (255, 255, 255)
+            exec_time_avg = 0
+            fps_avg = 0
             while self.mustStop != "True" and self.mustStop != "Error":
                 self.mustStop = os.environ.get("MustStop", "Error")
 
                 milli_start = int(round(time.time() * 1000))
                 # depthFrame values are in millimeters
                 inDet, frame, depthFrame = self.__get_frame()
-
-                fps = self.__counter_end()
                 detections = inDet.detections
+
+                self.__counter_end()
+                fps_avg+=self._fps
                 milli_end = int(round(time.time() * 1000))
                 exec_time = milli_end - milli_start
+                exec_time_avg+=exec_time
+                count+=1
 
                 if len(detections) != 0:
                     for detection in detections:
@@ -247,14 +252,16 @@ class ObjectDetection(object):
                         roi = "{}:{}:{}:{}:{}".format(label, x1, x2, y1, y2)
                         # Here we detection the objects in our rgb and depthframe, we stop the detection 
                         # while niryo is moving (the main thread is blocked)
-                        if global_var.NIRYO != None and int(x) != 0 or int(y) != 0 or int(z) != 0: 
-                            print("[POS] Raw Cam Pos x {} y {} z {}".format(x, y, z))
+                        if isinstance(global_var.NIRYO, Niryo) and int(x) != 0 and int(y) != 0 and int(z) != 0: 
+                            print("[POS] Raw Cam Pos x {} y {} z {} Niryo {}".format(x, y, z, str(Niryo)))
                             global_var.NIRYO.move_to_roi(x,y,z)
                             self.__publish_results(pos, roi)
 
                         if self._counter % 30 == 0:
                             print("[CAM] Exec Time {}ms\nPos ( x {}mm ; y {}mm ; z {}mm )\nclass {}\nROI ({};{};{};{})".format(exec_time, x, y, z, label, x1, x2, y1, y2))                    
                             self.__publish_results(pos, roi)
+                if count % 30 == 0:
+                    print("[CAM] Average detection time : {} ms | FPS {}".format(round(exec_time_avg/count, 2), round(fps_avg/count, 1)))
                         
                 if cv2.waitKey(1) == ord('q'):
                     print("[*] Exiting ..")
