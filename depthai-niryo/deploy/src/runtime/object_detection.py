@@ -6,14 +6,13 @@ import time
 import depthai as dai
 from ..niryo import Niryo
 from ..mqtt import MqttClient
-
+from ..utils import global_var
 
 class ObjectDetection(object):
-    def __init__(self, args: dict, model_basename: string="models", config_basename: string="config", niryo: Niryo=None, mqtt_client: MqttClient=None) -> None:
+    def __init__(self, args: dict, model_basename: string="models", config_basename: string="config", mqtt_client: MqttClient=None) -> None:
         """ get initial config based on given files """
         # parse config
         self.args = args
-        self._ni = niryo
         self._mqtt_client = mqtt_client
         self.configPath = Path(os.path.join(config_basename, args["config"]))
         self.mustStop = os.environ.get("MustStop", "Error")
@@ -53,7 +52,7 @@ class ObjectDetection(object):
     def configure_pipeline(self) -> None:
         """ configure the video pipeline """
         # Create pipeline
-        print("\n[!] Setting up video pipeline ..")
+        print("\n[CAM] Setting up video pipeline ..")
         self.pipeline = dai.Pipeline()
 
         # Define sources and outputs for RGB and DEPTH
@@ -75,7 +74,7 @@ class ObjectDetection(object):
 
         # Increase fps : splitting device-sent XLink packets, in bytes
         self.pipeline.setXLinkChunkSize(0)
-        print("[*] Done ! ")
+        print("[CAM] Done ! ")
     
     def configure_properties(self) -> None:
         """ configure camera and neural network properties for object detection """
@@ -120,7 +119,7 @@ class ObjectDetection(object):
     def configure_link(self) -> None:
         """ configure link for all sources """
 
-        print("[!] Linking all sources ..")
+        print("[CAM] Linking all sources ..")
         # Linking
         self.monoLeft.out.link(self.stereo.left)
         self.monoRight.out.link(self.stereo.right)
@@ -134,7 +133,7 @@ class ObjectDetection(object):
         self.spatialDetectionNetwork.boundingBoxMapping.link(self.xoutBoundingBoxDepthMapping.input)
         self.stereo.depth.link(self.spatialDetectionNetwork.inputDepth)
         self.spatialDetectionNetwork.passthroughDepth.link(self.xoutDepth.input)
-        print("[*] Done")
+        print("[CAM] Done")
 
     @staticmethod
     def draw(exec_time: float, rgb_frame, depth_frame, detections, labels, fps: int=0, show: bool=False, color: tuple=(255, 255, 255)):
@@ -195,7 +194,7 @@ class ObjectDetection(object):
         return x1, x2, y1, y2, label
     
     def __get_position(self, detection) -> (float, float, float):
-        return detection.spatialCoordinates.x, detection.spatialCoordinates.y, detection.spatialCoordinates.z
+        return round(detection.spatialCoordinates.x, 3), round(detection.spatialCoordinates.y, 3), round(detection.spatialCoordinates.z, 3)
     
     def __get_frame(self):
         """ get frame from opencv pipeline """
@@ -244,14 +243,19 @@ class ObjectDetection(object):
                     for detection in detections:
                         x1, x2, y1, y2, label = self.__get_roi(detection)
                         x, y, z = self.__get_position(detection)
+                        pos = "{}:{}:{}:{}".format(label, x, y, z)
+                        roi = "{}:{}:{}:{}:{}".format(label, x1, x2, y1, y2)
+                        # Here we detection the objects in our rgb and depthframe, we stop the detection 
+                        # while niryo is moving (the main thread is blocked)
+                        if global_var.NIRYO != None and int(x) != 0 or int(y) != 0 or int(z) != 0: 
+                            print("[POS] Raw Cam Pos x {} y {} z {}".format(x, y, z))
+                            global_var.NIRYO.move_to_roi(x,y,z)
+                            self.__publish_results(pos, roi)
 
                         if self._counter % 30 == 0:
-                            pos = "{}:{}:{}:{}".format(label, round(x, 2), round(y, 2), round(z, 2))
-                            roi = "{}:{}:{}:{}:{}".format(label, x1, x2, y1, y2)
-                            print("[*] Exec Time {}ms\nPos ( x {}mm ; y {}mm ; z {}mm )\nclass {}\nROI ({};{};{};{})".format(exec_time, x, y, z, label, x1, x2, y1, y2))
+                            print("[CAM] Exec Time {}ms\nPos ( x {}mm ; y {}mm ; z {}mm )\nclass {}\nROI ({};{};{};{})".format(exec_time, x, y, z, label, x1, x2, y1, y2))                    
                             self.__publish_results(pos, roi)
                         
-
                 if cv2.waitKey(1) == ord('q'):
                     print("[*] Exiting ..")
                     break

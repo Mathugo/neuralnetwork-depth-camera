@@ -14,7 +14,6 @@ RUN python3 -m pip install -r /app/requirements.txt
 ENV PYTHONUNBUFFERED 1
 
 # niryo
-#RUN apt-get install git python-rospy
 ADD build/python_tcp_client /app/build/python_tcp_client
 WORKDIR /app/build/python_tcp_client
 RUN python3 setup.py install
@@ -25,9 +24,10 @@ ADD src/runtime /app/src/runtime
 ADD src/api /app/src/api
 ADD src/mqtt /app/src/mqtt
 ADD src/app /app/src/app
+ADD src/utils /app/src/utils
 ADD models /app/models
 ADD config /app/config
-ADD main.py /app/
+ADD main.py /app/ 
  
 WORKDIR /app/
 

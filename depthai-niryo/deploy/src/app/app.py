@@ -1,14 +1,12 @@
 import argparse, sys, os
-
-sys.path.append("/app/build/python_tcp_client")
-sys.path.append("/app/models/")
-sys.path.append("/app/config/")
-
 from ..runtime import ObjectDetection
 from ..mqtt import MqttClient
 from ..niryo import Niryo
+from ..utils import global_var
 
 """ DEFAULT ARGS """
+
+MQTT_VERBOSE = False
 
 DEFAULT_MODEL = "yolov5m_default_openvino_2021.4_6shave.blob"
 DEFAULT_CONFIG = "yolov5.json"
@@ -49,9 +47,9 @@ class App(object):
     def __init__(self):
         """ start depthai, api, niryo"""
         self._args = Args.get_args()
-        #self._ni = Niryo()
-        self._ni = None
-        self._mqtt_client = MqttClient(self._args["mqtt_broker"], self._args["mqtt_cam_topic"], self._args["mqtt_niryo_topic"], int(self._args["mqtt_broker_port"]))
+        global_var.NIRYO = Niryo()
+        #self._ni = None
+        self._mqtt_client = MqttClient(self._args["mqtt_broker"], self._args["mqtt_cam_topic"], self._args["mqtt_niryo_topic"], int(self._args["mqtt_broker_port"]), verbose=MQTT_VERBOSE)
         self._od = ObjectDetection(self._args, mqtt_client=self._mqtt_client)
 
     def configure(self) -> None:

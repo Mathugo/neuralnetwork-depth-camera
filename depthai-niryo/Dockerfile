@@ -41,3 +41,26 @@ RUN sudo usermod -a -G users "$(whoami)" && \
    sh $INSTALL_DIR/install_dependencies/install_NCS_udev_rules.sh"
 # build Object Detection sample
 RUN echo "source /opt/intel/openvino/bin/setupvars.sh" >> ~/.bashrc 
+
+# ros kinetic
+RUN apt-get install dirmngr ca-certificates apt-transport-https ca-certificates curl
+RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
+# delete old key just in case 
+RUN apt-key del 421C365BD9FF1F717815A3895523BAEEB01FA116
+# add new apt key for ros kinetic
+RUN apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+
+RUN apt-get update && apt-get install -y python-rosdep python-rosinstall-generator python-wstool python-rosinstall build-essential cmake
+RUN rosdep init
+RUN rosdep update
+
+RUN mkdir -p ~/ros_catkin_ws
+RUN cd ~/ros_catkin_ws
+RUN rosinstall_generator ros_comm --rosdistro kinetic --deps --wet-only --tar > kinetic-ros_comm-wet.rosinstall
+RUN wstool init src kinetic-ros_comm-wet.rosinstall
+
+RUN apt-get autoremove
+
+
+RUN apt-get install python3-catkin-pkg
+
