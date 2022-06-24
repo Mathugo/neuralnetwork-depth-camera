@@ -13,40 +13,16 @@
 # limitations under the License.
 # ==============================================================================
 """Flower client example using PyTorch for CIFAR-10 image classification."""
-
-import argparse
-import timeit
 from collections import OrderedDict
+import torch, torchvision, timeit, sys
 from importlib import import_module
-
 import flwr as fl
-import numpy as np
-import torch
-import torchvision
 from flwr.common import EvaluateIns, EvaluateRes, FitIns, FitRes, ParametersRes, Weights
-
-from ..src.utils import *
+import utils
 
 # pylint: disable=no-member
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # pylint: enable=no-member
-
-
-def get_weights(model: torch.nn.ModuleList) -> fl.common.Weights:
-    """Get model weights as a list of NumPy ndarrays."""
-    return [val.cpu().numpy() for _, val in model.state_dict().items()]
-
-
-def set_weights(model: torch.nn.ModuleList, weights: fl.common.Weights) -> None:
-    """Set model weights from a list of NumPy ndarrays."""
-    state_dict = OrderedDict(
-        {
-            k: torch.tensor(np.atleast_1d(v))
-            for k, v in zip(model.state_dict().keys(), weights)
-        }
-    )
-    model.load_state_dict(state_dict, strict=True)
-
 
 class CifarClient(fl.client.Client):
     """Flower client implementing CIFAR-10 image classification using
@@ -60,27 +36,35 @@ class CifarClient(fl.client.Client):
         testset: torchvision.datasets.CIFAR10,
     ) -> None:
         self.cid = cid
-        self.model = model
+        self._model = model
         self.trainset = trainset
         self.testset = testset
 
-    def get_parameters(self) -> ParametersRes:
-        print(f"Client {self.cid}: get_parameters")
+    def get_parameters(self) -> None:
+        """Get parameters of the local model."""
+        raise Exception("Not implemented (server-side parameter initialization)")
+        #print(f"Client {self.cid}: get_parameters")
+        #weights: Weights = utils.get_weights(self.model)
+        #parameters = fl.common.weights_to_parameters(weights)
+        #return ParametersRes(parameters=parameters)
 
-        weights: Weights = get_weights(self.model)
-        parameters = fl.common.weights_to_parameters(weights)
-        return ParametersRes(parameters=parameters)
+    def _set_parameters(self, parameters) -> None:
+        """Set model parameters with the ones
+        given by the server."""
+        params_dict = zip(self._model.state_dict().keys(), parameters)
+        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+        self._model.load_state_dict(state_dict, strict=True)
 
     def _instantiate_model(self, model_str: str):
 
         # will load utils.model_str
         m = getattr(import_module("utils"), model_str)
         # instantiate model
-        self.model = m()
+        self._model = m()
 
     def fit(self, ins: FitIns) -> FitRes:
         print(f"Client {self.cid}: fit")
-
+        # get weights from server
         weights: Weights = fl.common.parameters_to_weights(ins.parameters)
         config = ins.config
         fit_begin = timeit.default_timer()
@@ -91,8 +75,9 @@ class CifarClient(fl.client.Client):
         pin_memory = bool(config["pin_memory"])
         num_workers = int(config["num_workers"])
 
+        print("[CONFIG] Epochs {} BS {} WORKERS {} PINMEM {}".format(epochs, batch_size, num_workers, pin_memory))
         # Set model parameters
-        set_weights(self.model, weights)
+        utils.set_weights(self._model, weights)
 
         if torch.cuda.is_available():
             kwargs = {
@@ -107,10 +92,11 @@ class CifarClient(fl.client.Client):
         trainloader = torch.utils.data.DataLoader(
             self.trainset, batch_size=batch_size, shuffle=True, **kwargs
         )
-        utils.train(self.model, trainloader, epochs=epochs, device=DEVICE)
+
+        utils.train(self._model, trainloader, epochs=epochs, device=DEVICE)
 
         # Return the refined weights and the number of examples used for training
-        weights_prime: Weights = get_weights(self.model)
+        weights_prime: Weights = utils.get_weights(self._model)
         params_prime = fl.common.weights_to_parameters(weights_prime)
         num_examples_train = len(self.trainset)
         metrics = {"duration": timeit.default_timer() - fit_begin}
@@ -124,13 +110,13 @@ class CifarClient(fl.client.Client):
         weights = fl.common.parameters_to_weights(ins.parameters)
 
         # Use provided weights to update the local model
-        set_weights(self.model, weights)
+        utils.set_weights(self._model, weights)
 
         # Evaluate the updated model on the local dataset
         testloader = torch.utils.data.DataLoader(
             self.testset, batch_size=32, shuffle=False
         )
-        loss, accuracy = utils.test(self.model, testloader, device=DEVICE)
+        loss, accuracy = utils.test(self._model, testloader, device=DEVICE)
 
         # Return the number of evaluation examples and the evaluation result (loss)
         metrics = {"accuracy": float(accuracy)}

@@ -1,53 +1,28 @@
-# Copyright 2020 Adap GmbH. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-"""PyTorch CIFAR-10 image classification.
-
-The code is generally adapted from 'PyTorch: A 60 Minute Blitz'. Further
-explanations are given in the official PyTorch tutorial:
-
-https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
-"""
-# mypy: ignore-errors
-# pylint: disable=W0223
-from pathlib import Path
-from time import time
-from typing import Tuple
-
+from collections import OrderedDict
+import numpy as np
 import flwr as fl
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision.transforms as transforms
-from torch import Tensor
-from torchvision import datasets
-from torchvision.models import resnet18
+import torch, sys
+sys.path.append("..")
+from models import *
+from pathlib import Path
+from typing import Tuple
+from time import time
 
-DATA_ROOT = Path("../../data")
-from ..src.models import Net, ResNet18
+DATA_ROOT = Path("data")
 
-def load_model(model_name: str) -> nn.Module:
+""" train test load """
+def load_model(model_name: str, n_classes=10, img_size=32) -> nn.Module:
 
     if model_name == "Net":
         return Net()
     elif model_name == "ResNet18":
         return ResNet18()
+    elif model_name == "ViT":
+        return ViT(n_classes=n_classes, img_size=img_size, emb_size=98)
     else:
         raise NotImplementedError(f"model {model_name} is not implemented")
-
 # pylint: disable=unused-argument
-def load_cifar(download=False) -> Tuple[datasets.CIFAR10, datasets.CIFAR10]:
+def load_cifar(download=True) -> Tuple[datasets.CIFAR10, datasets.CIFAR10]:
     """Load CIFAR-10 (training and test set)."""
     transform = transforms.Compose(
         [
@@ -63,6 +38,19 @@ def load_cifar(download=False) -> Tuple[datasets.CIFAR10, datasets.CIFAR10]:
     )
     return trainset, testset
 
+def get_weights(model: torch.nn.ModuleList) -> fl.common.Weights:
+    """Get model weights as a list of NumPy ndarrays."""
+    return [val.cpu().numpy() for _, val in model.state_dict().items()]
+
+def set_weights(model: torch.nn.ModuleList, weights: fl.common.Weights) -> None:
+    """Set model weights from a list of NumPy ndarrays."""
+    state_dict = OrderedDict(
+        {
+            k: torch.tensor(np.atleast_1d(v))
+            for k, v in zip(model.state_dict().keys(), weights)
+        }
+    )
+    model.load_state_dict(state_dict, strict=True)
 
 def train(
     net: Net,
@@ -94,12 +82,11 @@ def train(
 
             # print statistics
             running_loss += loss.item()
-            if i % 2000 == 1999:  # print every 2000 mini-batches
+            if i % 100 == 0: 
                 print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1, running_loss / 2000))
                 running_loss = 0.0
 
     print(f"Epoch took: {time() - t:.2f} seconds")
-
 
 def test(
     net: Net,

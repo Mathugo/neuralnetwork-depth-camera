@@ -1,4 +1,4 @@
-from debian:buster-slim
+FROM debian:buster-slim
 
 # basics
 RUN apt-get update

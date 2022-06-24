@@ -1,4 +1,4 @@
-from mathugo/flower-base
+FROM mathugo/flower-base
 
 RUN apt-get install wget -y
 
@@ -12,10 +12,14 @@ RUN wget https://www.cs.toronto.edu/\~kriz/cifar-10-python.tar.gz
 RUN tar -zxvf cifar-10-python.tar.gz
 
 WORKDIR /app
-# Scripts needed for Flower client
-ADD src/client /app/src/client
-ADD src/utils /app/src/utils
-#ADD utils.py /app
+# pip requirements
+ADD requirements.txt .
+RUN python3 -m pip install -r requirements.txt
 
+# Scripts needed for Flower client
+ADD src/client ./src/client
+ADD src/utils ./src/utils
+ADD src/models ./src/models
+#ADD utils.py /app
 
 ENTRYPOINT ["python3","-u","./main.py"]

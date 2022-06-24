@@ -1,13 +1,13 @@
 from collections import OrderedDict
-import flwr as fl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch import Tensor
 from torchvision import datasets
-from torchvision.models import resnet18
-
+from torchvision.models import resnet18, convnext_tiny, mobilenet_v3_small, vit_b_16, vit_l_16
+from .vit_modules import *
+import flwr as fl
 
 # pylint: disable=unsubscriptable-object
 class Net(nn.Module):
@@ -44,7 +44,6 @@ class Net(nn.Module):
         )
         self.load_state_dict(state_dict, strict=True)
 
-
 def ResNet18():
     """Returns a ResNet18 model from TorchVision adapted for CIFAR-10."""
 
@@ -55,5 +54,33 @@ def ResNet18():
     nn.init.kaiming_normal_(model.conv1.weight, mode="fan_out", nonlinearity="relu")
     # no need for pooling if training for CIFAR-10
     model.maxpool = torch.nn.Identity()
-
     return model
+
+class ViT(nn.Sequential):
+    def __init__(self,     
+                in_channels: int = 3,
+                patch_size: int = 16,
+                emb_size: int = 768,
+                img_size: int = 224,
+                depth: int = 12,
+                n_classes: int = 1000,
+                **kwargs):
+        super().__init__(
+            PatchEmbedding(in_channels, patch_size, emb_size, img_size),
+            TransformerEncoder(depth, emb_size=emb_size, **kwargs),
+            ClassificationHead(emb_size, n_classes))
+
+        self._transform = transforms.Compose([transforms.Resize((224, 224)), 
+        transforms.ToTensor()])
+
+class MyMobileTransformer(nn.Module):
+    """ Mobile Transformer inspired by ViT paper --> An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale"""
+    def __init__(self) -> None:
+        super(Net, self).__init__()
+    
+    def _transform(self, x) -> Tensor:
+        pass
+    
+    def forward(self, x: Tensor) -> Tensor:
+        """ Compute forward pass """
+        pass

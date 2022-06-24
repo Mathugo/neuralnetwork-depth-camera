@@ -2,6 +2,10 @@
 depthai-python
 segmentation/data-science-bowl-2018.zip
 segmentation/vgg16.h5
+ofb-flower/client/data
+ofb-flower/server/data
+ofb-flower/.DS_Store
+
 segmentation/.DS_Store
 # Byte-compiled / optimized / DLL files
 __pycache__/
