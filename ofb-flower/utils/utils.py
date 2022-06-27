@@ -52,6 +52,8 @@ def set_weights(model: torch.nn.ModuleList, weights: fl.common.Weights) -> None:
     )
     model.load_state_dict(state_dict, strict=True)
 
+# TODO Criterion focal loss for unbalanced dataset
+
 def train(
     net: Net,
     trainloader: torch.utils.data.DataLoader,
@@ -66,6 +68,7 @@ def train(
     print(f"Training {epochs} epoch(s) w/ {len(trainloader)} batches each")
     t = time()
     # Train the network
+    print_interval = 10
     for epoch in range(epochs):  # loop over the dataset multiple times
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
@@ -82,9 +85,9 @@ def train(
 
             # print statistics
             running_loss += loss.item()
-            if i % 100 == 0: 
-                print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1, running_loss / 2000))
-                running_loss = 0.0
+            if (i+1) % print_interval == 0: 
+                print("[%d, %d] loss: %.3f" % (epoch + 1, i*len(images), running_loss / i))
+                #running_loss = 0.0
 
     print(f"Epoch took: {time() - t:.2f} seconds")
 
@@ -98,13 +101,18 @@ def test(
     correct = 0
     total = 0
     loss = 0.0
+    print_interval = 10
+    print("[Sample | Batch]")
     with torch.no_grad():
-        for data in testloader:
+        for i, data in enumerate(testloader, 0):
             images, labels = data[0].to(device), data[1].to(device)
             outputs = net(images)
             loss += criterion(outputs, labels).item()
             _, predicted = torch.max(outputs.data, 1)  # pylint: disable=no-member
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            if (i+1)%print_interval == 0: 
+                print("[%d, %d] loss: %.3f accuracy %.3f" % ( i+ 1, i*len(images), loss/i, (correct / total)*100) )
+
     accuracy = correct / total
     return loss, accuracy

@@ -47,8 +47,8 @@ class App(object):
     def __init__(self):
         """ start depthai, api, niryo"""
         self._args = Args.get_args()
-        #global_var.NIRYO = Niryo()
-        #self._ni = None
+        global_var.NIRYO = Niryo()
+        self._ni = global_var.NIRYO
         self._mqtt_client = MqttClient(self._args["mqtt_broker"], self._args["mqtt_cam_topic"], self._args["mqtt_niryo_topic"], int(self._args["mqtt_broker_port"]), verbose=MQTT_VERBOSE)
         self._od = ObjectDetection(self._args, mqtt_client=self._mqtt_client)
 

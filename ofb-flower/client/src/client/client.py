@@ -48,13 +48,6 @@ class CifarClient(fl.client.Client):
         #parameters = fl.common.weights_to_parameters(weights)
         #return ParametersRes(parameters=parameters)
 
-    def _set_parameters(self, parameters) -> None:
-        """Set model parameters with the ones
-        given by the server."""
-        params_dict = zip(self._model.state_dict().keys(), parameters)
-        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-        self._model.load_state_dict(state_dict, strict=True)
-
     def _instantiate_model(self, model_str: str):
 
         # will load utils.model_str
