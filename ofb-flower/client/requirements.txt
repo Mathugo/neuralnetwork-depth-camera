@@ -1,7 +1,0 @@
-einops
-pillow
-matplotlib
-pandas
-scikit-image
-numpy
-glob
