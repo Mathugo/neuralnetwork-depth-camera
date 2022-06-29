@@ -13,5 +13,5 @@ The base image for openvino2021 working on raspbian : [mathugo/openvino-pi](http
 * [Python](https://www.python.org/)
 * [Docker](https://www.docker.com/)
 * [Depthai](https://docs.luxonis.com/en/latest/)
-* [Openfl](https://github.com/intel/openfl)
+* [FastAPI](https://fastapi.tiangolo.com/)
 
