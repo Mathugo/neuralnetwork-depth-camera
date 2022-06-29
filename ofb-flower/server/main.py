@@ -1,6 +1,6 @@
 """Minimal example on how to start a simple Flower server."""
 import argparse
-from src.server import Server
+from src.server import ClassificationServer
 
 class Args:
     @staticmethod
@@ -19,10 +19,16 @@ class Args:
             help="Number of rounds of federated learning (default: 1)",
         )
         parser.add_argument(
-            "--sample_fraction",
+            "--fraction_fit",
             type=float,
-            default=1.0,
-            help="Fraction of available clients used for fit/evaluate (default: 1.0)",
+            default=0.5,
+            help="Fraction of available clients used for fit (default: 0.5)",
+        )
+        parser.add_argument(
+            "--fraction_eval",
+            type=float,
+            default=0.5,
+            help="Fraction of available clients used for evaluate (default: 0.5)",
         )
         parser.add_argument(
             "--min_sample_size",
@@ -45,7 +51,7 @@ class Args:
             "--model",
             type=str,
             default="ResNet18",
-            choices=["Net", "ResNet18", "ViT"],
+            choices=["HugoNet", "ResNet18", "ViT"],
             help="model to train",
         )
         parser.add_argument(
@@ -53,6 +59,12 @@ class Args:
             type=str,
             default=None,
             help="path to model's weight"
+        )
+        parser.add_argument(
+            "--n_classes",
+            type=int,
+            default="3",
+            help="Number of classes of the model",
         )
         parser.add_argument(
             "--batch_size",
@@ -66,13 +78,21 @@ class Args:
             default=4,
             help="number of workers for dataset reading",
         )
+        parser.add_argument(
+            "--local_epochs",
+            type=int,
+            default=3,
+            help="local epochs to perform on each client"
+        )
         parser.add_argument("--pin_memory", action="store_true")
         return parser.parse_args()
 
 def main() -> None:
     """Start server and train five rounds."""
-    serv = Server(Args.get_args())
+    serv = ClassificationServer(Args.get_args())
+    serv.configure_strategy()
     serv.start()
+    serv.model.save("model.pt")
 
 if __name__ == "__main__":
     main()

@@ -1,8 +1,11 @@
 import argparse, torch, sys
 import flwr as fl
 sys.path.append("..")
-from utils import load_model, load_cifar
-from src.client import CifarClient
+from utils import load_model, load_classify_dataset
+from src.client import GearClassifyClient
+from src.pipeline import resnet18_transform
+from torchsummary import summary 
+
 # pylint: disable=no-member
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # pylint: enable=no-member
@@ -27,6 +30,7 @@ class Args:
         )
         parser.add_argument(
             "--data_dir",
+            default="data/Gear_Classify.v3-gear-fl-raw",
             type=str,
             help="Directory where the dataset lives",
         )
@@ -34,8 +38,14 @@ class Args:
             "--model",
             type=str,
             default="ResNet18",
-            choices=["Net", "ResNet18", "ViT"],
+            choices=["HugoNet", "ResNet18", "ViT"],
             help="model to train",
+        )
+        parser.add_argument(
+            "--n_classes",
+            type=int,
+            default=3,
+            help="number of classes to detect"
         )
         return parser.parse_args()
 
@@ -45,12 +55,14 @@ def main() -> None:
     # Configure logger
     fl.common.logger.configure(f"client_{args.cid}", host=args.log_host)
     # model
-    model = load_model(args.model)
+    model, trf = load_model(args.model, n_classes=args.n_classes)
+    #summary(model, (3, 224, 224))
+
+    trainset, testset = load_classify_dataset(args.data_dir, transforms=trf)
     model.to(DEVICE)
-    # load (local, on-device) dataset
-    trainset, testset = load_cifar()
+
     # Start client
-    client = CifarClient(args.cid, model, trainset, testset)
+    client = GearClassifyClient(args.cid, model, trainset, testset)
     print("[CLIENT] Starting client ..")
     fl.client.start_client(args.server_address, client)
 

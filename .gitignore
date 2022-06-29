@@ -1,15 +1,19 @@
 # custom
-depthai-python
+depthai-niryo/research/object_detection/yolov5
+
 segmentation/data-science-bowl-2018.zip
 segmentation/.vscode
 segmentation/dataset
 segmentation/model.onnx
 segmentation/.ipynb_checkpoints
-
 segmentation/vgg16.h5
+
 ofb-flower/client/data
 ofb-flower/server/data
 ofb-flower/.DS_Store
+
+ofb-flower/labeling/dataset
+ofb-flower/labeling/roboflow
 
 
 segmentation/.DS_Store
