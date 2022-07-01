@@ -8,6 +8,7 @@ incrementing axis, rotating.
 
 from niryo_one_tcp_client import *
 import math, string, time
+from typing import Dict, Tuple
 
 class Niryo(NiryoOneClient):
     """Custom Niryo Class herited from NiryoOneClient 
@@ -44,9 +45,9 @@ class Niryo(NiryoOneClient):
             ip                     (:str:`str`, optional): Ip address of the niryo server 
             grip       (:RobotTool:`RobotTool`, optional): Selected grip to use with the Niryo
             arm_velocity           (:int:`int`, optional): Arm velocity in %
-            z_offset_conveyor  (:float:`float`, optional): See Niryo's class Attributes
-            z_offset_object    (:float:`float`, optional): See Niryo's class Attributes
-            x_offset_cam       (:float:`float`, optional): See Niryo's class Attributes
+            z_offset_conveyor    (:obj:`float`, optional): See Niryo's class Attributes
+            z_offset_object      (:obj:`float`, optional): See Niryo's class Attributes
+            x_offset_cam         (:obj:`float`, optional): See Niryo's class Attributes
         """
         self._is_quit = False
         self.grip = grip
@@ -70,7 +71,10 @@ class Niryo(NiryoOneClient):
         self.x_offset_cam = x_offset_cam
 
     @property
-    def position(self):
+    def position(self) -> Tuple:
+        """Tuple: Get the current position of the Niryo Robot (6 axis)
+        
+        The position is set from 6 distinct values representing the axis"""
         status, data = self.get_pose()
         if status is True:
             return data
@@ -87,6 +91,14 @@ class Niryo(NiryoOneClient):
             print("[*] Moved successfully")
 
     def calibration(self, mode: CalibrateMode=CalibrateMode.AUTO) -> None:
+        """Calibrate the Niryo using selected mode
+        
+            Args:
+                mode (obj:`CalibrateMode`, optional): Mode of calibration, either AUTO or MANUAL
+
+            Note:
+                If MANUAL is set, someone has to manualy reach the joints limit for the robot to detect its internal offset values
+        """
         if self.need_calibration():
             print("[!] Starting calibration ..")
             status, data = self.calibrate(mode)
@@ -98,12 +110,21 @@ class Niryo(NiryoOneClient):
             print("[*] No need to calibrate")
     
     def quit(self) -> None:
+        """Quit method overloading NiryoOneClient.quit()
+        
+            We set the boolean variable *_is_quit* to prevent from disconnecting multiple times
+        """
         if self._is_quit == False:
             print("[NIRYO] Disconnecting .. ") 
             self._is_quit = True
             super().quit()
 
     def increment_pos_x(self, value: float=0.10):
+        """Increment axis x by float value
+
+            Args:
+                value (obj:`float`, optional): Value in meters
+        """
         status, data = self.shift_pose(RobotAxis.X, value)
         if status is False:
             print("Error: " + data)
@@ -111,6 +132,11 @@ class Niryo(NiryoOneClient):
             print("[*] Shifted correctly")
 
     def increment_pos_y(self, value: float=0.15):
+        """Increment axis y by float value
+
+            Args:
+                value (obj:`float`, optional): Value in meters
+        """
         status, data = self.shift_pose(RobotAxis.Y, value)
         if status is False:
             print("Error: " + data)
@@ -118,6 +144,11 @@ class Niryo(NiryoOneClient):
             print("[*] Shifted correctly")
     
     def increment_pos_z(self, value: float=0.1):
+        """Increment axis z by float value
+
+            Args:
+                value (obj:`float`, optional): Value in meters
+        """
         status, data = self.shift_pose(RobotAxis.Z, value)
         if status is False:
             print("Error: " + data)
@@ -125,6 +156,11 @@ class Niryo(NiryoOneClient):
             print("[*] Shifted correctly")
 
     def increment_pos_pitch(self, value: float=0.2):
+        """Increment axis pitch by float value
+
+            Args:
+                value (obj:`float`, optional): Value in meters
+        """
         status, data = self.shift_pose(RobotAxis.PITCH, value)
         if status is False:
             print("Error: " + data)
@@ -132,6 +168,11 @@ class Niryo(NiryoOneClient):
             print("[*] Shifted correctly")
 
     def increment_pos_roll(self, value: float=0.3):
+        """Increment axis roll by float value
+
+            Args:
+                value (obj:`float`, optional): Value in meters
+        """
         status, data = self.shift_pose(RobotAxis.ROLL, value)
         if status is False:
             print("Error: " + data)
@@ -139,6 +180,11 @@ class Niryo(NiryoOneClient):
             print("[*] Shifted correctly")
 
     def increment_pos_yaw(self, value: float=0.3):
+        """Increment axis yaw by float value
+
+            Args:
+                value (obj:`float`, optional): Value in meters
+        """
         status, data = self.shift_pose(RobotAxis.YAW, value)
         if status is False:
             print("Error: " + data)
@@ -146,6 +192,12 @@ class Niryo(NiryoOneClient):
             print("[*] Shifted correctly")
     
     def increment_pos(self, axis: str, value: float):
+        """Increment select axis by float value
+
+            Args:
+                axis    (obj:`str`): Axis in string format
+                value (obj:`float`): Value in meters
+        """
         print("[NIRYO] Incrementing axis {} with value {}".format(axis, value))
         try:
             if axis == "x": self.increment_pos_x(value)
@@ -157,8 +209,8 @@ class Niryo(NiryoOneClient):
         except:
             print("[NIRYO] Incorrect value {} or axis {}".format(value, axis))
 
-    # Going back to initial pose
     def go_to_initial_pose(self):
+        """Go to the initial position setted in the constructor"""
         if self.initial_pose is not None:
             status, data = self.move_pose(*self.pose_to_list(self.initial_pose))
             if status is False:
@@ -166,22 +218,20 @@ class Niryo(NiryoOneClient):
             else:
                 print("[*] Moved successfully to initial pose")
 
-    def pick_object(self, x=0.25, y=0.0, z=0.14, roll=0.0, pitch=1.57, yaw=0.0):
-        pick_pose = PoseObject(
-            x=x, y=y, z=z,
-            roll=-roll, pitch=pitch, yaw=yaw,
-        )
-        self.pick_from_pose(*pick_pose.to_list())
+    def calc_target(self, x_ia: float, y_ia: float, z_ia: float) -> Tuple[bool, float, float, float]:
+        """Calculate the end effector coordinates from the Depthai camera 
 
-    def place_object(self, x=-0.01, y=0.23, z=0.12, roll=-0., pitch=1.57, yaw=-1.57):
-        place_pose = PoseObject(
-            x=x, y=y, z=z,
-            roll=-roll, pitch=pitch, yaw=yaw,
-        )
-        self.place_from_pose(*place_pose.to_list())
+            Args:
+                x_ia (float): x coordonates from the camera base
+                y_ia (float): y coordonates from the camera base
+                z_ia (float): z coordonates from the camera base (depth)
 
-    def calc_target(self, x_ia: float, y_ia: float, z_ia: float):
-        """  calc the coordinates with taking into acount the offset between the end effector and the cam """
+            Note:
+                We take into acount the offset between the end effector and the cam 
+            
+            Return:
+                bool, float, float, float: If True do the move to coordinates in Niryo base
+                """
         try:
             x_roi = round(math.sqrt(z_ia**2 - (self.z - self.z_offset_conveyor)**2)/2, 3) 
             doMove = True
@@ -197,8 +247,23 @@ class Niryo(NiryoOneClient):
         except:
             return False, 0, 0, 0
 
-    def move_to_roi(self, x_ia: int,y_ia: int,z_ia: int, ratio: float=0.2, z_offset_conveyor: float=None):
-        """ move to roi based on depthai OAK-D 2.5D camera"""
+    def move_to_roi(self, x_ia: int,y_ia: int,z_ia: int, z_offset_conveyor: float=None):
+        """Move to ROI based on depthai OAK-D 2.5D camera
+
+            Full sequence for :
+                * object detection
+                * calculate the coordinates 
+                * open gripper
+                * move to desired ROI 
+                * close grippper
+                * go to stand by position
+                * unleashed object
+            
+            Args:
+                x_ia (float): x coordonates from the camera base (meters)
+                y_ia (float): y coordonates from the camera base (meters)
+                z_ia (float): z coordonates from the camera base (depth in meters)
+        """
         if z_offset_conveyor != None:
             self.z_offset_conveyor = z_offset_conveyor
         doMove, x_, y_, z_ = self.calc_target(x_ia, y_ia, z_ia)

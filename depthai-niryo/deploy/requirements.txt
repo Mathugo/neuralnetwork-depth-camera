@@ -11,5 +11,4 @@ Cython
 pyparsing 
 numpy 
 python-multipart
-signals
 blobconverter

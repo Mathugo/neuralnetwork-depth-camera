@@ -1,7 +1,7 @@
 from typing import Dict
 from os import environ
-""" DEFAULT ARGS """
 
+""" DEFAULT ARGS """
 DEFAULT_MQTT_VERBOSE = False
 DEFAULT_MODEL = "yolov5m_default_openvino_2021.4_6shave.blob"
 DEFAULT_CONFIG = "yolov5.json"
@@ -13,6 +13,12 @@ DEFAULT_THRESH_UP = 1000
 DEFAULT_THRESH_DOWN = 50
 
 class Args:
+    """Argument class to retreive app's parameter
+    
+    Note: 
+        See *main.py* for more information about the parameters
+    
+    """
     @staticmethod
     def get_args() -> Dict:
         """Parse arguments to perform object detection with depthai.

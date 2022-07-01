@@ -8,9 +8,9 @@ class App(object):
     """App class managing Niryo, ObjectDetection and MQTT client
     
     Attributes:
-        _args        (dict)             : Dictionnary of all arguments passed via ``docker run``command
-        _mqtt_client (MqttClient)       : MQTT Client publishing and subscribing to different topics
-        _od          (ObjectDetection)  : ObjectDetection class to use depthai camera and perform object detection on video stream
+        _args              (Dict): Dictionnary of all arguments passed via ``docker run``command
+        _mqtt_client (MqttClient): MQTT Client publishing and subscribing to different topics
+        _od     (ObjectDetection): ObjectDetection class to use depthai camera and perform object detection on video stream
     """
     def __init__(self) -> None:
         """Start Niryo robot, MQTT client and object detection models"""
