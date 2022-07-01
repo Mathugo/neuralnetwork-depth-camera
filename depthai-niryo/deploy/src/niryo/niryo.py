@@ -1,29 +1,66 @@
-#from clients.python.niryo_one_tcp_client.enums import RobotAxis
-#from niryo_one_python_api.niryo_one_api import *
+# -*- coding: utf-8 -*-
+"""NiryoOne class
+
+This module demonstrates the niryone class and its methods. 
+NiryoOne is destinate to perform diferents moves including grabing objects, 
+incrementing axis, rotating.
+"""
+
 from niryo_one_tcp_client import *
 import math, string, time
 
+class Niryo(NiryoOneClient):
+    """Custom Niryo Class herited from NiryoOneClient 
+    
+    This class implements methods to grab an object using (x,y,z) coordonates, set its position
+    or increment specific axis
+    
+    Attributes:
+        _is_quit         (bool): If we were already disconnected this variable prevent to run into multiple disconnection from the Niryo
+        grip        (RobotTool): Tool when the robot is initialized
+        initial_pose    (Tuple): Store the initial position to move to it later
+        z_offset_conveyor (int): Offset between the conveyor and the origin of the axis z from the Niryo
+        z_offset_object   (int): Offset between object and the conveyor or the ground (measure the object high)
+        x_offset_cam      (int): Offset between the depthai camera and the robot's end effector (usefull to precisely calcul object relative position from the Niryo)
+    """
 
-class Niryo:
-    def __init__(self, ip: string="localhost", grip: RobotTool= RobotTool.GRIPPER_2, arm_velocity: int=30, z_offset_conveyor: float=0, z_offset_object:float=0.105, x_offset_cam: float=0.04):
-        self.n = NiryoOneClient()
+    def __init__(self, 
+        ip: string="localhost", 
+        grip: RobotTool= RobotTool.GRIPPER_2, 
+        arm_velocity: int=30, 
+        z_offset_conveyor: float=0, 
+        z_offset_object:float=0.105, 
+        x_offset_cam: float=0.04) -> None:
+        super(Niryo, self).__init__()
+        """Initialize the Niryo state
+
+        Niryo will sequentialy set 
+            * connect to tcp niryo server 
+            * calibrate the robot with selected calibration mode
+            * set arm velocity
+            * set desired tool to get good grip
+        
+        Args:
+            ip                     (:str:`str`, optional): Ip address of the niryo server 
+            grip       (:RobotTool:`RobotTool`, optional): Selected grip to use with the Niryo
+            arm_velocity           (:int:`int`, optional): Arm velocity in %
+            z_offset_conveyor  (:float:`float`, optional): See Niryo's class Attributes
+            z_offset_object    (:float:`float`, optional): See Niryo's class Attributes
+            x_offset_cam       (:float:`float`, optional): See Niryo's class Attributes
+        """
         self._is_quit = False
         self.grip = grip
-        self.n.connect(ip)
-        print("[NIRYO] Calibration..")
-        status, data = self.n.calibrate(CalibrateMode.AUTO)
-        if status:
-            print("[NIRYO] Done")
-        else:
-            print("[NIRYO] Unable to calibrate")
+        self.connect(ip)
+        self.calibration()
         self.set_arm_max_velocity(arm_velocity)
         self.change_tool(self.grip)
-        status, data = self.n.get_pose()
+
+        status, data = self.get_pose()
         if status is True:
             self.initial_pose = data
         else:
             print("[NIRYO] Error: " + data)
-            self.pose = None
+
         self.stand_by = (0.11, 0.0, 0.4, 0., 1., 0.0)
         self.grab_mode = (0.11, 0.0, 0.4, 0., 1.35, 0.0)
         self.position = self.stand_by
@@ -34,7 +71,7 @@ class Niryo:
 
     @property
     def position(self):
-        status, data = self.n.get_pose()
+        status, data = self.get_pose()
         if status is True:
             return data
         else:
@@ -43,16 +80,16 @@ class Niryo:
     @position.setter
     def position(self, value):
         self.x, self.y, self.z, self.roll, self.pitch, self.yaw = value
-        status, data = self.n.move_pose(self.x, self.y, self.z, self.roll, self.pitch, self.yaw)
+        status, data = self.move_pose(self.x, self.y, self.z, self.roll, self.pitch, self.yaw)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Moved successfully")
 
-    def calibration(self) -> None:
-        if self.n.need_calibration():
+    def calibration(self, mode: CalibrateMode=CalibrateMode.AUTO) -> None:
+        if self.need_calibration():
             print("[!] Starting calibration ..")
-            status, data = self.n.calibrate(CalibrateMode.AUTO)
+            status, data = self.calibrate(mode)
             if status:
                 print("[*] Calibration done")
             else:
@@ -60,64 +97,49 @@ class Niryo:
         else:
             print("[*] No need to calibrate")
     
-    def __del__(self) -> None:
-        if not self._is_quit: self.n.quit()
-
     def quit(self) -> None:
-        print("[NIRYO] Disconnecting .. ") 
-        self.n.quit()
-        self._is_quit = True
-
-    def set_arm_max_velocity(self, percentage: int) -> None:
-        print("[!] Setting {}% arm velocity".format(percentage))
-        if percentage > 100 or percentage < 0:
-            raise ValueError("Wrong percentage for velocity")  
-        else:
-            self.n.set_arm_max_velocity(percentage)
-            print("[*]  Done")
-
-    def change_tool(self, tool: RobotTool) -> None:
-        print("[*] Changing tool ..")
-        self.n.change_tool(tool)
-        print("[*] Done")
+        if self._is_quit == False:
+            print("[NIRYO] Disconnecting .. ") 
+            self._is_quit = True
+            super().quit()
 
     def increment_pos_x(self, value: float=0.10):
-        status, data = self.n.shift_pose(RobotAxis.X, value)
+        status, data = self.shift_pose(RobotAxis.X, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
 
     def increment_pos_y(self, value: float=0.15):
-        status, data = self.n.shift_pose(RobotAxis.Y, value)
+        status, data = self.shift_pose(RobotAxis.Y, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
     
     def increment_pos_z(self, value: float=0.1):
-        status, data = self.n.shift_pose(RobotAxis.Z, value)
+        status, data = self.shift_pose(RobotAxis.Z, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
 
     def increment_pos_pitch(self, value: float=0.2):
-        status, data = self.n.shift_pose(RobotAxis.PITCH, value)
+        status, data = self.shift_pose(RobotAxis.PITCH, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
 
     def increment_pos_roll(self, value: float=0.3):
-        status, data = self.n.shift_pose(RobotAxis.ROLL, value)
+        status, data = self.shift_pose(RobotAxis.ROLL, value)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Shifted correctly")
 
     def increment_pos_yaw(self, value: float=0.3):
-        status, data = self.n.shift_pose(RobotAxis.YAW, value)
+        status, data = self.shift_pose(RobotAxis.YAW, value)
         if status is False:
             print("Error: " + data)
         else:
@@ -138,7 +160,7 @@ class Niryo:
     # Going back to initial pose
     def go_to_initial_pose(self):
         if self.initial_pose is not None:
-            status, data = self.n.move_pose(*self.n.pose_to_list(self.initial_pose))
+            status, data = self.move_pose(*self.pose_to_list(self.initial_pose))
             if status is False:
                 print("Error: " + data)
             else:
@@ -149,20 +171,14 @@ class Niryo:
             x=x, y=y, z=z,
             roll=-roll, pitch=pitch, yaw=yaw,
         )
-        self.n.pick_from_pose(*pick_pose.to_list())
+        self.pick_from_pose(*pick_pose.to_list())
 
     def place_object(self, x=-0.01, y=0.23, z=0.12, roll=-0., pitch=1.57, yaw=-1.57):
         place_pose = PoseObject(
             x=x, y=y, z=z,
             roll=-roll, pitch=pitch, yaw=yaw,
         )
-        self.n.place_from_pose(*place_pose.to_list())
-
-    def open_gripper(self, grip_speed=400):
-        self.n.open_gripper(self.grip, grip_speed)
-
-    def close_gripper(self, grip_speed=400):
-        self.n.close_gripper(self.grip, grip_speed)
+        self.place_from_pose(*place_pose.to_list())
 
     def calc_target(self, x_ia: float, y_ia: float, z_ia: float):
         """  calc the coordinates with taking into acount the offset between the end effector and the cam """

@@ -3,7 +3,7 @@ from pathlib import Path, PosixPath
 import string
 import blobconverter
 import onnx
-import os
+from os import path
 
 __VERSION__ = "2021.4"
 
@@ -54,7 +54,7 @@ class Pipeline(object):
         onnx_model.graph.node.append(sigmoid1)
         onnx_model.graph.node.append(sigmoid2)
         onnx_model.graph.node.append(sigmoid3)
-        output_path = os.path.join(output_dir, output_model)
+        output_path = path.join(output_dir, output_model)
         print("[*] Done, now saving to {} ..".format(output_path))
         onnx.save(onnx_model, output_path)
         print("[*] Done")
