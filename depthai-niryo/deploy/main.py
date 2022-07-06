@@ -15,14 +15,14 @@ but if you just want to pull the image and run it you can use the argument ``sud
 All Attributes are retreived using environment variables, so you have to start this app using the Docker command.
 
 Attributes:
-    MQTT_BROKER      (str) : Ip address of the MQTT Broker 
-    MQTT_PORT        (str) : Port of the MQTT Broker
-    MQTT_CAM_TOPIC   (str) : MQTT Topic where the camera's results will be send (objects position ..)
-    MQTT_NIRYO_TOPIC (str) : MQTT Topic where the niryo's results will be send (position ..)
-    MODEL            (str) : Depthai blob model located directly in /depthai-niryo/deploy/models
-    CONFIG           (str) : Depthai json config is mandatory to run blob model, located in /depthai-niryo/deploy/config
-    THRESHOLD_UP     (str) : Provide maximum depth for the sensor (mm)
-    THRESHOLD_DOWN   (str) : Provide minimum depth for the sensor (mm)
+    MQTT_BROKER      (str): Ip address of the MQTT Broker 
+    MQTT_PORT        (str): Port of the MQTT Broker
+    MQTT_CAM_TOPIC   (str): MQTT Topic where the camera's results will be send (objects position ..)
+    MQTT_NIRYO_TOPIC (str): MQTT Topic where the niryo's results will be send (position ..)
+    MODEL            (str): Depthai blob model located directly in /depthai-niryo/deploy/models
+    CONFIG           (str): Depthai json config is mandatory to run blob model, located in /depthai-niryo/deploy/config
+    THRESHOLD_UP     (str): Provide maximum depth for the sensor (mm)
+    THRESHOLD_DOWN   (str): Provide minimum depth for the sensor (mm)
 
 Examples:
     Docker:
