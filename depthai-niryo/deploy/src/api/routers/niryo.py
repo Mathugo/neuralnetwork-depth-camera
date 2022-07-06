@@ -11,12 +11,12 @@ def position():
     return {"message": pos}
 
 @router.post("/niryo/increment_pos/{axis}/{pos}", tags=["niryo"])
-async def increment_pos(axis: str, pos: float):
-    await global_var.NIRYO.increment_pos(axis, pos)
+def increment_pos(axis: str, pos: float):
+    global_var.NIRYO.increment_pos(axis, pos)
     return {"message": "position of {} incremented by {}".format(axis, pos)}
 
 @router.post("/niryo/move_to_roi/{position}", tags=["niryo"])
-async def move_to_roi(position: str):
+def move_to_roi(position: str):
     print("Position wanted : "+position)
     _roi = position.split(",")
     try:
@@ -24,7 +24,7 @@ async def move_to_roi(position: str):
         y = float(_roi[1])
         z = float(_roi[2])
         print('X {} Y {} Z {}'.format(x,y,z))
-        await global_var.NIRYO.move_to_roi(x, y, z)
+        global_var.NIRYO.move_to_roi(x, y, z)
         return {"message": "niryo moved to ({},{},{})".format(x,y,z)}
     except:
         return {"set position": "error {} not a valid position, see /niryo/move_to_roi/help"}

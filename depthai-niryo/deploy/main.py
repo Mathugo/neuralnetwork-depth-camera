@@ -62,7 +62,7 @@ def root():
 def stop():
     os.environ["MustStop"] = "True"
     global_var.app_thread.join()
-    APP.exit()
+    global_var.APP.exit()
     return {"message": "App stopped"}
 
 @app.get("/start")

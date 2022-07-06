@@ -19,7 +19,7 @@ class Niryo(NiryoOneClient):
         _is_quit         (bool): If we were already disconnected this variable prevent to run into multiple disconnection from the Niryo
         grip        (RobotTool): Tool when the robot is initialized
         initial_pose    (Tuple): Store the initial position to move to it later
-        z_offset_conveyor (int): Offset between the conveyor and the origin of the axis z from the Niryo
+        z_offset_conveyor (int): Offset between the conveyor (object origin) and the origin of the axis z from the Niryo
         z_offset_object   (int): Offset between object and the conveyor or the ground (measure the object high)
         x_offset_cam      (int): Offset between the depthai camera and the robot's end effector (usefull to precisely calcul object relative position from the Niryo)
     """
@@ -29,8 +29,8 @@ class Niryo(NiryoOneClient):
         grip: RobotTool= RobotTool.GRIPPER_2, 
         arm_velocity: int=30, 
         z_offset_conveyor: float=0, 
-        z_offset_object:float=0.105, 
-        x_offset_cam: float=0.04) -> None:
+        z_offset_object:float=0.12, 
+        x_offset_cam: float=0.01) -> None:
         super(Niryo, self).__init__()
         """Initialize the Niryo state
 
@@ -61,8 +61,7 @@ class Niryo(NiryoOneClient):
         else:
             print("[NIRYO] Error: " + data)
 
-        self.stand_by = (0.11, 0.0, 0.4, 0., 1., 0.0)
-        self.grab_mode = (0.11, 0.0, 0.4, 0., 1.35, 0.0)
+        self.stand_by = (0.8, 0.0, 0.4, 0., 1.1, 0.0)
         self.position = self.stand_by
 
         self.z_offset_conveyor = z_offset_conveyor
@@ -207,15 +206,15 @@ class Niryo(NiryoOneClient):
             print("[NIRYO] Estimated position ({},{},{}) m \nwith z_offset_conveyor {} ; z_offset_object {} ; x_offset_cam".format(x_, y_, z_, self.z_offset_conveyor, self.z_offset_object, self.x_offset_cam))
             self.last_grab = (x_, y_, z_)
             # move to region of interest ex : x = 0.022m y = 0.033m z = 0.650m
-            self.open_gripper()
+            self.open_gripper(self.grip, 500)
             self.increment_pos_x(x_)
             self.increment_pos_y(y_)
             self.increment_pos_z(z_)
-            self.close_gripper()
+            self.close_gripper(self.grip, 500)
             self.position = self.stand_by
-            self.open_gripper()
+            self.open_gripper(self.grip, 500)
             time.sleep(0.5)
-            self.close_gripper()
+            self.close_gripper(self.grip, 500)
         elif doMove and x_ >= 0.4:
             print("[NIRYO] Wrong value of x too large for the Robot {},{},{}".format(x_, y_, z_))
         
