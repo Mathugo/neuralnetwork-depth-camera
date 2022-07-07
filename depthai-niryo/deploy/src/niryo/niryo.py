@@ -10,6 +10,7 @@ from niryo_one_tcp_client import *
 import math, string, time
 from typing import Dict, Tuple
 
+
 class Niryo(NiryoOneClient):
     """Custom Niryo Class herited from NiryoOneClient 
     
@@ -22,7 +23,7 @@ class Niryo(NiryoOneClient):
         initial_pose    (Tuple): Store the initial position to move to it later
         z_offset_conveyor (int): Offset between the conveyor (object origin) and the origin of the axis z from the Niryo
         z_offset_object   (int): Offset between object and the conveyor or the ground (measure the object high)
-        x_offset_cam      (int): Offset between the depthai camera and the robot's end effector (usefull to precisely calcul object relative position from the Niryo)
+        x_offset_cam      (int): Offset between the depthai camera and the robot's end effector, in meter (useful to precisely calcul object relative position from the Niryo)
     """
 
     def __init__(self, 
@@ -31,7 +32,9 @@ class Niryo(NiryoOneClient):
         arm_velocity: int=30, 
         z_offset_conveyor: float=0, 
         z_offset_object:float=0.12, 
-        x_offset_cam: float=0.01) -> None:
+        x_offset_cam: float=0.04,
+        grab_speed: int=200,
+        ) -> None:
         super(Niryo, self).__init__()
         """Initialize the Niryo state
 
@@ -48,13 +51,18 @@ class Niryo(NiryoOneClient):
             z_offset_conveyor    (:obj:`float`, optional): See Niryo's class Attributes
             z_offset_object      (:obj:`float`, optional): See Niryo's class Attributes
             x_offset_cam         (:obj:`float`, optional): See Niryo's class Attributes
+            grab_speed             (:obj:`int`, optional): Speed of closing and opening using the provided tool
         """
         self._is_quit = False
         self.grip = grip
+        self.grab_speed = grab_speed
         self.connect(ip)
         self.calibration()
         self.set_arm_max_velocity(arm_velocity)
         self.change_tool(self.grip)
+
+        # shift between real object position in z_ia and the ground (otherwise we hit the ground with the niryo)
+        self.z_vanilla_shift = 0.12
 
         status, data = self.get_pose()
         if status is True:
@@ -62,9 +70,8 @@ class Niryo(NiryoOneClient):
         else:
             print("[NIRYO] Error: " + data)
 
-        self.stand_by = (0.8, 0.0, 0.4, 0., 1.1, 0.0)
+        self.stand_by = (0.10, 0.0, 0.4, 0., 1.1, 0.0)
         self.position = self.stand_by
-
         self.z_offset_conveyor = z_offset_conveyor
         self.z_offset_object = z_offset_object
         self.x_offset_cam = x_offset_cam
@@ -82,12 +89,24 @@ class Niryo(NiryoOneClient):
     
     @position.setter
     def position(self, value):
-        self.x, self.y, self.z, self.roll, self.pitch, self.yaw = value
-        status, data = self.move_pose(self.x, self.y, self.z, self.roll, self.pitch, self.yaw)
+        x, y, z, roll, pitch, yaw = value
+        status, data = self.move_pose(x, y, z, roll, pitch, yaw)
         if status is False:
             print("Error: " + data)
         else:
             print("[*] Moved successfully")
+
+    @property
+    def x(self):
+        return self.position.to_list()[0]
+
+    @property
+    def y(self):
+        return self.position.to_list()[1]    
+
+    @property
+    def z(self):
+        return self.position.to_list()[2]
 
     def calibration(self, mode: CalibrateMode=CalibrateMode.AUTO) -> None:
         """Calibrate the Niryo using selected mode
@@ -246,7 +265,116 @@ class Niryo(NiryoOneClient):
         except:
             return False, 0, 0, 0
 
-    def move_to_roi(self, x_ia: int,y_ia: int,z_ia: int, z_offset_conveyor: float=None):
+    def calc_x_y(self, x_ia: float, y_ia: float, z_ia: float):
+        """Calculate the object x and y in niryo base
+        
+            Return:
+                x (int): The x coordinate in mm
+                y (int): The y coordinate in mm
+        """
+        pos = self.position.to_list()
+        print(f"[NIRYO] Position before starting the sequence {pos}")
+        z = pos[2]
+        try:
+            print(f"Z ia {z_ia} Z {z}")
+            x_roi = round(math.sqrt(z_ia**2 - z**2), 3) 
+
+            doMove = True
+        except:
+            x_roi = None
+            doMove = False
+            print("[NIRYO] Wrong coordinates, impossible to get the sqrt of a negative number")
+
+        return x_roi, y_ia
+
+    def seq_first_move_to_roi(self, x_ia: float, y_ia: float, z_ia: float, z_offset_conveyor=None) -> bool:
+        """First move to roi, we increase speed at the begining to save time"""
+        # First we convert to meter and calculate X and Y 
+        self.set_arm_max_velocity(90)
+        
+        x_ia/=1000
+        y_ia/=1000
+        z_ia/=1000
+        
+        if z_offset_conveyor != None:
+            self.z_offset_conveyor = z_offset_conveyor
+
+        print(f"[FIRST MOVE] x_i {round(x_ia, 2)}m y_ia {round(y_ia, 2)}m z_ia {round(z_ia, 2)}m")
+        # get the x,y of object form niryo axis
+        print(f"Lets move to the power of z_ia (we neglect z_niryo")
+        x = z_ia**2 
+        y = x_ia
+        if x != None:
+            print(f"X object calculted {x} Y calculated object calculated {y}")
+            self.increment_pos_x(x)
+            self.increment_pos_y(y)
+        
+        # now we turn the head (roll) and we again move until we reach satisfaying position
+        pos = self.position.to_list()
+        # x y z roll pitch yaw
+        pos[4] = 1.5
+        self.position = tuple(pos)
+        print("[NIRYO] Head turned to the ground")
+        return True
+    
+    def seq_do_roi_loop(self, x_ia: float, y_ia: float, z_ia: float, seq_count: int, z_offset_conveyor=None, absolute_pos_error_x_ia: float=0.013, absolute_pos_error_y_ia: float=0.013, threshold_algo_count: int=3) -> bool:
+        """Go as close as possible to the roi, increase speed to save time"""
+        self.set_arm_max_velocity(100)
+        pos = self.position.to_list()
+        x_ia/=1000
+        y_ia/=1000
+        z_ia/=1000
+
+        print(f"[DO ROI LOOP] x_ia {round(x_ia,3)} y_ia {round(y_ia, 3)} z_niryo {pos[2]} y_niryo {pos[1]} x_niryo {pos[0]}  with seq count {seq_count} pos threshold at {threshold_algo_count}")
+        # if x or y ia are not as close as possible to the object coordinates AND if the algorithm iteration counter is under the threshold count 
+        # -> we continue to reach target, otherwise we just grab the object (satisfying position)
+        if ( abs(x_ia) <= absolute_pos_error_x_ia or abs(y_ia) <= absolute_pos_error_y_ia ) and seq_count > threshold_algo_count:
+            print("Reach the object destination !")
+            return True
+        else:
+            # we get x, y, z
+            # the camera is flipped so : x = -y_ia
+            # y = -x_ia
+            x_real = -y_ia
+            y_real = -x_real
+            print("Didn't reach object position !")
+            print(f"X real {round(x_real, 3)}  Y real {round(y_real, 3)} with seq count {seq_count} pos threshold at {threshold_algo_count} and pos error x {absolute_pos_error_x_ia}m pos error y {absolute_pos_error_y_ia}m")
+            self.increment_pos_x(x_real)
+            self.increment_pos_y(y_real)
+            return False
+            
+
+    def seq_grab_object(self, x_ia: float, y_ia:float, z_ia: float, z_shift: float=None):
+        """End of the sequence, grab the object and decrease speed otherwise the robot fall"""
+        x_ia/=1000
+        y_ia/=1000
+        z_ia/=1000
+        pos = self.position.to_list()
+        # shift between niryo z pos and the ground (otherwise we hit the ground with the niryo)
+        # normaly we just want to use z provided by car but z niryo is also consistent and the same
+
+        if z_shift == None:
+            z_real = - (pos[2] - self.z_vanilla_shift)
+        else:
+            z_real = - (pos[2] - self.z_shift)
+
+        # add the cam x offset 
+        self.increment_pos_x(self.x_offset_cam)
+
+        self.set_arm_max_velocity(50)
+        print(f"[DO GRAB] offset_cam {self.x_offset_cam} z_real {round(z_real, 3)} x_i {round(x_ia,2)} y_ia {round(y_ia, 2)} z_niryo {pos[2]} y_niryo {pos[1]} x_niryo {pos[0]}")
+
+        self.open_gripper(self.grip, self.grab_speed)
+        self.increment_pos_z(z_real)
+        self.close_gripper(self.grip, self.grab_speed)
+        self.set_arm_max_velocity(100)
+        self.position = self.stand_by
+        self.open_gripper(self.grip, self.grab_speed)
+        time.sleep(0.5)
+        self.close_gripper(self.grip, self.grab_speed)
+        self.set_arm_max_velocity(50)
+
+    def move_to_roi_old(self, x_ia: int,y_ia: int,z_ia: int, z_offset_conveyor: float=None):
         """Move to ROI based on depthai OAK-D 2.5D camera
 
             Full sequence for :
@@ -257,6 +385,11 @@ class Niryo(NiryoOneClient):
                 * close grippper
                 * go to stand by position
                 * unleashed object
+            2. 
+                * get first coordinates from camera 
+                * Move head | to the ground 
+                * Move head until we reach x,y near 0mm
+                * Dive in z axis from niryo and pick up the object 
             
             Args:
                 x_ia (float): x coordonates from the camera base (meters)
@@ -266,20 +399,21 @@ class Niryo(NiryoOneClient):
         if z_offset_conveyor != None:
             self.z_offset_conveyor = z_offset_conveyor
         doMove, x_, y_, z_ = self.calc_target(x_ia, y_ia, z_ia)
+
         if doMove and 0 < x_ <= 0.38:
             # pos limit x from stand position 
             print("[NIRYO] Estimated position ({},{},{}) m \nwith z_offset_conveyor {} ; z_offset_object {} ; x_offset_cam".format(x_, y_, z_, self.z_offset_conveyor, self.z_offset_object, self.x_offset_cam))
             self.last_grab = (x_, y_, z_)
-            # move to region of interest ex : x = 0.022m y = 0.033m z = 0.650m
-            self.open_gripper(self.grip, 500)
+            # move to region of interest ex : x = 0.022m y = 0.033m z = 0.4m
+            self.open_gripper(self.grip, self.grab_speed)
             self.increment_pos_x(x_)
             self.increment_pos_y(y_)
             self.increment_pos_z(z_)
-            self.close_gripper(self.grip, 500)
+            self.close_gripper(self.grip, self.grab_speed)
             self.position = self.stand_by
-            self.open_gripper(self.grip, 500)
+            self.open_gripper(self.grip, self.grab_speed)
             time.sleep(0.5)
-            self.close_gripper(self.grip, 500)
+            self.close_gripper(self.grip, self.grab_speed)
         elif doMove and x_ >= 0.4:
             print("[NIRYO] Wrong value of x too large for the Robot {},{},{}".format(x_, y_, z_))
         

@@ -16,6 +16,11 @@ class ObjectDetection(object):
         self._mqtt_client = mqtt_client
         self.configPath = Path(os.path.join(config_basename, args["config"]))
         self.mustStop = os.environ.get("MustStop", "Error")
+
+        # niryo od detection
+        self._is_satisfying_pos = False
+        self._did_i_do_first_move = False
+
         if not self.configPath.exists():
             raise ValueError("Path {} does not exist!".format(self.configPath))
 
@@ -211,8 +216,8 @@ class ObjectDetection(object):
 
     def run(self) -> None:
         print("[!] Run started")
-        # Connect to device and start pipeline
-        with dai.Device(self.pipeline) as device:
+        # Connect to device and start pipeline, Force usb2 otherwise OAK-D crash
+        with dai.Device(self.pipeline, usb2Mode=True) as device:
 
             # Output queues will be used to get the rgb frames and nn data from the outputs defined above
             self._previewQueue = device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
@@ -229,12 +234,15 @@ class ObjectDetection(object):
             #color = (255, 255, 255)
             exec_time_avg = 0
             fps_avg = 0
+            seq_count = 1
+
             while self.mustStop != "True" and self.mustStop != "Error":
                 self.mustStop = os.environ.get("MustStop", "Error")
 
                 milli_start = int(round(time.time() * 1000))
                 # depthFrame values are in millimeters
                 inDet, frame, depthFrame = self.__get_frame()
+                
                 detections = inDet.detections
 
                 self.__counter_end()
@@ -243,6 +251,7 @@ class ObjectDetection(object):
                 exec_time = milli_end - milli_start
                 exec_time_avg+=exec_time
                 count+=1
+                seq_count+=1
 
                 if len(detections) != 0:
                     for detection in detections:
@@ -252,9 +261,27 @@ class ObjectDetection(object):
                         roi = "{}:{}:{}:{}:{}".format(label, x1, x2, y1, y2)
                         # Here we detection the objects in our rgb and depthframe, we stop the detection 
                         # while niryo is moving (the main thread is blocked)
+
+                        # if class is not good -> do seq
+
                         if isinstance(global_var.NIRYO, Niryo) and int(x) != 0 and int(y) != 0 and int(z) != 0: 
                             print("[POS] Raw Cam Pos x {} y {} z {} Niryo {}".format(x, y, z, str(Niryo)))
-                            global_var.NIRYO.move_to_roi(x,y,z)
+                            time.sleep(1)
+                            
+                            # Grabing sequence
+                            if self._did_i_do_first_move == False:
+                                if (global_var.NIRYO.seq_first_move_to_roi(x,y,z)):
+                                    self._did_i_do_first_move = True
+
+                            if not self._is_satisfying_pos and self._did_i_do_first_move == True:
+                                self._is_satisfying_pos = global_var.NIRYO.seq_do_roi_loop(x,y,z, seq_count)
+                            else:
+                                # Go to Z and grab the object 
+                                global_var.NIRYO.seq_grab_object(x, y, z)
+                                self._is_satisfying_pos = False
+                                self._did_i_do_first_move = False
+                                seq_count=0
+                            
                             self.__publish_results(pos, roi)
 
                         if self._counter % 30 == 0:
