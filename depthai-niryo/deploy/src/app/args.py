@@ -9,8 +9,8 @@ DEFAULT_MQTT_BROKER = "test.fr"
 DEFAULT_MQTT_NIRYO_TOPIC = "mqtt/niryo/"
 DEFAULT_MQTT_CAM_TOPIC = "mqtt/cam/"
 DEFAULT_MQTT_BROKER_PORT = "1883"
-DEFAULT_THRESH_UP = 1000
-DEFAULT_THRESH_DOWN = 50
+DEFAULT_THRESH_UP = 500
+DEFAULT_THRESH_DOWN = 100
 
 class Args:
     """Argument class to retreive app's parameter

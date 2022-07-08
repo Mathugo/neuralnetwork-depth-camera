@@ -83,6 +83,4 @@ class MqttClient(mqtt.Client):
         self.loop_stop()
         print("[MQTT] Disconnected")
 
-    def __del__(self):
-        self.quit()
 

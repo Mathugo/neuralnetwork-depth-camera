@@ -10,6 +10,8 @@ from niryo_one_tcp_client import *
 import math, string, time
 from typing import Dict, Tuple
 
+# Height of the conveyor --> about 6cm above the ground 
+CONVEYOR_Z_OFFSET = 0.064
 
 class Niryo(NiryoOneClient):
     """Custom Niryo Class herited from NiryoOneClient 
@@ -32,7 +34,8 @@ class Niryo(NiryoOneClient):
         arm_velocity: int=30, 
         z_offset_conveyor: float=0, 
         z_offset_object:float=0.12, 
-        x_offset_cam: float=0.04,
+        x_offset_cam: float=0.039,
+        y_offset_cam: float=0.008,
         grab_speed: int=200,
         ) -> None:
         super(Niryo, self).__init__()
@@ -63,6 +66,7 @@ class Niryo(NiryoOneClient):
 
         # shift between real object position in z_ia and the ground (otherwise we hit the ground with the niryo)
         self.z_vanilla_shift = 0.12
+        self._do_roi_counter = 1
 
         status, data = self.get_pose()
         if status is True:
@@ -75,7 +79,17 @@ class Niryo(NiryoOneClient):
         self.z_offset_conveyor = z_offset_conveyor
         self.z_offset_object = z_offset_object
         self.x_offset_cam = x_offset_cam
+        self.y_offset_cam = y_offset_cam
 
+    def test_vanilla_shift(self):
+        # test vanilla shift 
+        self.open_gripper(self.grip, 500)
+        z = -(self.position.to_list()[2] - self.z_vanilla_shift )
+        # substract - CONVEYOR_Z_OFFSET if u want to test the conveyor shift
+        self.increment_pos_z(z)
+        print(f"Test shift z calculted {z}")
+        self.close_gripper(self.grip, 200)
+        self.position = self.stand_by
     @property
     def position(self) -> Tuple:
         """Tuple: Get the current position of the Niryo Robot (6 axis)
@@ -269,16 +283,17 @@ class Niryo(NiryoOneClient):
         """Calculate the object x and y in niryo base
         
             Return:
-                x (int): The x coordinate in mm
-                y (int): The y coordinate in mm
+                x (int): The x coordinate in meters
+                y (int): The y coordinate in meters
         """
         pos = self.position.to_list()
-        print(f"[NIRYO] Position before starting the sequence {pos}")
+        print(f"[NIRYO] Position before starting the sequence {pos[:2]}")
         z = pos[2]
         try:
-            print(f"Z ia {z_ia} Z {z}")
-            x_roi = round(math.sqrt(z_ia**2 - z**2), 3) 
-
+            z = z - self.z_vanilla_shift - CONVEYOR_Z_OFFSET
+            z_ia = (z_ia - self.x_offset_cam)
+            print(f"Z ia {round(z_ia, 2)} Z calculted {z} z vanilla shift {round(self.z_vanilla_shift, 2)} conveyor z offset {CONVEYOR_Z_OFFSET}")
+            x_roi = round(math.sqrt(z_ia**2 - (z**2)), 3)
             doMove = True
         except:
             x_roi = None
@@ -299,11 +314,17 @@ class Niryo(NiryoOneClient):
         if z_offset_conveyor != None:
             self.z_offset_conveyor = z_offset_conveyor
 
-        print(f"[FIRST MOVE] x_i {round(x_ia, 2)}m y_ia {round(y_ia, 2)}m z_ia {round(z_ia, 2)}m")
+        print(f"[FIRST MOVE] x_ia {round(x_ia, 2)}m y_ia {round(y_ia, 2)}m z_ia {round(z_ia, 2)}m")
         # get the x,y of object form niryo axis
-        print(f"Lets move to the power of z_ia (we neglect z_niryo")
-        x = z_ia**2 
+        #x = z_ia**2 
+        # change coordinates, the camera is flipped so y become -y and in niryo base y is - x so y = -- x_ia = x_ia ; 
+        # x is calculted using Pytagor Theorem 
+        x, _ = self.calc_x_y(x_ia, y_ia, z_ia)
+
+        # we substract the offset cam so that the cam can see in center the objects
+        x = x - self.x_offset_cam
         y = x_ia
+
         if x != None:
             print(f"X object calculted {x} Y calculated object calculated {y}")
             self.increment_pos_x(x)
@@ -317,33 +338,47 @@ class Niryo(NiryoOneClient):
         print("[NIRYO] Head turned to the ground")
         return True
     
-    def seq_do_roi_loop(self, x_ia: float, y_ia: float, z_ia: float, seq_count: int, z_offset_conveyor=None, absolute_pos_error_x_ia: float=0.013, absolute_pos_error_y_ia: float=0.013, threshold_algo_count: int=3) -> bool:
+    def seq_do_roi_loop(self, x_ia: float, y_ia: float, z_ia: float, z_offset_conveyor=None, absolute_pos_error_x_ia: float=0.02, absolute_pos_error_y_ia: float=0.02, threshold_algo_iteration: int=2) -> bool:
         """Go as close as possible to the roi, increase speed to save time"""
         self.set_arm_max_velocity(100)
         pos = self.position.to_list()
         x_ia/=1000
         y_ia/=1000
         z_ia/=1000
-
-        print(f"[DO ROI LOOP] x_ia {round(x_ia,3)} y_ia {round(y_ia, 3)} z_niryo {pos[2]} y_niryo {pos[1]} x_niryo {pos[0]}  with seq count {seq_count} pos threshold at {threshold_algo_count}")
-        # if x or y ia are not as close as possible to the object coordinates AND if the algorithm iteration counter is under the threshold count 
+        print(f"[DO ROI LOOP] x_ia {round(x_ia,3)} y_ia {round(y_ia, 3)} z_niryo {pos[2]} y_niryo {pos[1]} x_niryo {pos[0]}")
+        # if x or y ia are not as close as possible to the object coordinates 
         # -> we continue to reach target, otherwise we just grab the object (satisfying position)
-        if ( abs(x_ia) <= absolute_pos_error_x_ia or abs(y_ia) <= absolute_pos_error_y_ia ) and seq_count > threshold_algo_count:
+        if  abs(x_ia) <= absolute_pos_error_x_ia and abs(y_ia) <= absolute_pos_error_y_ia or self._do_roi_counter > threshold_algo_iteration:
             print("Reach the object destination !")
+            self._do_roi_counter=1
             return True
         else:
             # we get x, y, z
             # the camera is flipped so : x = -y_ia
             # y = -x_ia
-            x_real = -y_ia
-            y_real = -x_real
             print("Didn't reach object position !")
-            print(f"X real {round(x_real, 3)}  Y real {round(y_real, 3)} with seq count {seq_count} pos threshold at {threshold_algo_count} and pos error x {absolute_pos_error_x_ia}m pos error y {absolute_pos_error_y_ia}m")
-            self.increment_pos_x(x_real)
-            self.increment_pos_y(y_real)
+            # we change coordinates 
+            y_real = x_ia/(2*self._do_roi_counter)
+            x_real = y_ia/(2*self._do_roi_counter)
+
+            print(f"\n[NIRYO] X real {round(x_real, 3)}  Y real {round(y_real, 3)} and pos error x {absolute_pos_error_x_ia}m pos error y {absolute_pos_error_y_ia}m Counter {self._do_roi_counter}/{threshold_algo_iteration}")
+            if abs(x_ia) <= absolute_pos_error_x_ia:
+                # dojust y
+                print(f"[NIRYO] Finding good y .. incrementing {y_real}\n")
+                self.increment_pos_y(y_real)
+            elif abs(y_ia) <= absolute_pos_error_y_ia:
+                # do just x
+                print(f"[NIRYO] Finding good x .. incrementing {x_real}\n")
+                self.increment_pos_x(x_real)
+            else:
+                # do both
+                print("[NIRYO] Moving both\n")
+                self.increment_pos_x(x_real)
+                self.increment_pos_y(y_real)
+
+            self._do_roi_counter+=1
             return False
             
-
     def seq_grab_object(self, x_ia: float, y_ia:float, z_ia: float, z_shift: float=None):
         """End of the sequence, grab the object and decrease speed otherwise the robot fall"""
         x_ia/=1000
@@ -354,22 +389,31 @@ class Niryo(NiryoOneClient):
         # normaly we just want to use z provided by car but z niryo is also consistent and the same
 
         if z_shift == None:
-            z_real = - (pos[2] - self.z_vanilla_shift)
+            z_real = - (pos[2] - self.z_vanilla_shift - CONVEYOR_Z_OFFSET)
         else:
-            z_real = - (pos[2] - self.z_shift)
+            z_real = - (pos[2] - self.z_vanilla_shift - self.z_shift)
 
         # add the cam x offset 
+        print("[DO GRAB] DOING OFFSETS CAMERA x {} y {}".format(self.x_offset_cam, self.y_offset_cam))
         self.increment_pos_x(self.x_offset_cam)
+        self.increment_pos_y(self.y_offset_cam)
 
         self.set_arm_max_velocity(50)
         print(f"[DO GRAB] offset_cam {self.x_offset_cam} z_real {round(z_real, 3)} x_i {round(x_ia,2)} y_ia {round(y_ia, 2)} z_niryo {pos[2]} y_niryo {pos[1]} x_niryo {pos[0]}")
 
-        self.open_gripper(self.grip, self.grab_speed)
+        self.open_gripper(self.grip, 1000)
+
+        # now we can turn the head (roll) to avoid colision with the conveyor equipment
+        #pos = self.position.to_list()
+        # x y z roll pitch yaw
+        #pos[4] = 0.6
+        #self.position = tuple(pos)
+
         self.increment_pos_z(z_real)
         self.close_gripper(self.grip, self.grab_speed)
         self.set_arm_max_velocity(100)
         self.position = self.stand_by
-        self.open_gripper(self.grip, self.grab_speed)
+        self.open_gripper(self.grip, 1000)
         time.sleep(0.5)
         self.close_gripper(self.grip, self.grab_speed)
         self.set_arm_max_velocity(50)

@@ -20,6 +20,7 @@ class ObjectDetection(object):
         # niryo od detection
         self._is_satisfying_pos = False
         self._did_i_do_first_move = False
+        self._label_to_grab = "not_good"
 
         if not self.configPath.exists():
             raise ValueError("Path {} does not exist!".format(self.configPath))
@@ -99,6 +100,15 @@ class ObjectDetection(object):
         self.monoRight.setBoardSocket(dai.CameraBoardSocket.RIGHT)
 
         """ depth config """
+        self.stereo.setConfidenceThreshold(200)
+        # Better handling for occlusions
+        # Left-Right Check or LR-Check is used to remove incorrectly calculated disparity pixels due to occlusions at object borders (Left and Right camera views are slightly different).
+        self.stereo.setLeftRightCheck(True)
+        # Closer-in minimum depth, disparity range is doubled allows detecting closer distance objects for the given baseline. This increases the maximum disparity search from 96 to 191
+        self.stereo.setExtendedDisparity(True)  
+        # Better accuracy for longer distance, fractional disparity 32-levels:
+        self.stereo.setSubpixel(False)
+
         # setting node configs
         self.stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
         # Align depth map to the perspective of RGB camera, on which inference is done
@@ -210,7 +220,7 @@ class ObjectDetection(object):
         depthFrame = depth.getFrame()
         return inDet, frame, depthFrame
     
-    def __publish_results(self, pos, roi):
+    def __publish_results(self, pos: str, roi: str):
         self._mqtt_client.publish(self._mqtt_client.cam_topic+"/pos", pos)
         self._mqtt_client.publish(self._mqtt_client.cam_topic+"/roi", roi)
 
@@ -234,7 +244,6 @@ class ObjectDetection(object):
             #color = (255, 255, 255)
             exec_time_avg = 0
             fps_avg = 0
-            seq_count = 1
 
             while self.mustStop != "True" and self.mustStop != "Error":
                 self.mustStop = os.environ.get("MustStop", "Error")
@@ -251,7 +260,6 @@ class ObjectDetection(object):
                 exec_time = milli_end - milli_start
                 exec_time_avg+=exec_time
                 count+=1
-                seq_count+=1
 
                 if len(detections) != 0:
                     for detection in detections:
@@ -261,31 +269,28 @@ class ObjectDetection(object):
                         roi = "{}:{}:{}:{}:{}".format(label, x1, x2, y1, y2)
                         # Here we detection the objects in our rgb and depthframe, we stop the detection 
                         # while niryo is moving (the main thread is blocked)
-
                         # if class is not good -> do seq
-
                         if isinstance(global_var.NIRYO, Niryo) and int(x) != 0 and int(y) != 0 and int(z) != 0: 
-                            print("[POS] Raw Cam Pos x {} y {} z {} Niryo {}".format(x, y, z, str(Niryo)))
-                            time.sleep(1)
-                            
-                            # Grabing sequence
-                            if self._did_i_do_first_move == False:
-                                if (global_var.NIRYO.seq_first_move_to_roi(x,y,z)):
-                                    self._did_i_do_first_move = True
+                            if label == self._label_to_grab:
+                                #print("[CAMERA] Grabing label {} ..".format(label))
+                                # Grabing sequence
+                                if self._did_i_do_first_move == False:
+                                    if (global_var.NIRYO.seq_first_move_to_roi(x,y,z)):
+                                        self._did_i_do_first_move = True
 
-                            if not self._is_satisfying_pos and self._did_i_do_first_move == True:
-                                self._is_satisfying_pos = global_var.NIRYO.seq_do_roi_loop(x,y,z, seq_count)
-                            else:
-                                # Go to Z and grab the object 
-                                global_var.NIRYO.seq_grab_object(x, y, z)
-                                self._is_satisfying_pos = False
-                                self._did_i_do_first_move = False
-                                seq_count=0
+                                if not self._is_satisfying_pos and self._did_i_do_first_move == True:
+                                    self._is_satisfying_pos = global_var.NIRYO.seq_do_roi_loop(x,y,z)
+                                else:
+                                    # Go to Z and grab the object 
+                                    global_var.NIRYO.seq_grab_object(x, y, z)
+                                    self._is_satisfying_pos = False
+                                    self._did_i_do_first_move = False
                             
                             self.__publish_results(pos, roi)
 
                         if self._counter % 30 == 0:
-                            print("[CAM] Exec Time {}ms\nPos ( x {}mm ; y {}mm ; z {}mm )\nclass {}\nROI ({};{};{};{})".format(exec_time, x, y, z, label, x1, x2, y1, y2))                    
+                            print("[CAMERA] Exec Time {}ms Detected Label {} Raw Cam Pos x {} y {} z {}".format(exec_time, label, x, y, z))
+                            #print("[CAM] Exec Time {}ms\nPos ( x {}mm ; y {}mm ; z {}mm )\nclass {}\nROI ({};{};{};{})".format(exec_time, x, y, z, label, x1, x2, y1, y2))                    
                             self.__publish_results(pos, roi)
                 if count % 30 == 0:
                     print("[CAM] Average detection time : {} ms | FPS {}".format(round(exec_time_avg/count, 2), round(fps_avg/count, 1)))
