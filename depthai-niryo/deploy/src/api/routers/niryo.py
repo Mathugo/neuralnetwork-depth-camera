@@ -33,16 +33,38 @@ def move_to_roi(position: str):
 def move_to_roi_help(): 
     return {"help move_to_roi": "{x,y,z} --> move to roi"}
 
+@router.get("/niryo/open_gripper", tags=["niryo"])
+def open_gripper():
+    if global_var.NIRYO != None:
+        global_var.NIRYO.open_gripper(global_var.NIRYO.grip, 500)
+        return {"message": "gripper openned !"}
+    else:
+        return {"message": "niryo not currently alive"}
+
+@router.get("/niryo/close_gripper", tags=["niryo"])
+def close_gripper():
+    if global_var.NIRYO != None:
+        global_var.NIRYO.close_gripper(global_var.NIRYO.grip, 500)
+        return {"message": "gripper closed !"}
+    else:
+        return {"message": "niryo not currently alive"}
+
 @router.get("/niryo/stop", tags=["niryo"])
 async def stop():
-    global_var.NIRYO.quit()
-    global_var.NIRYO = None
-    return {"message": "niryo stopped"}
+    if global_var.NIRYO != None:
+        global_var.NIRYO.quit()
+        global_var.NIRYO = None
+        return {"message": "niryo stopped"}
+    else:
+        return {"message": "niryo already stopped"}
 
 @router.get("/niryo/start", tags=["niryo"])
 async def start():
-    global_var.NIRYO = Niryo()
-    return {"message": "niryo started"}
+    if global_var.NIRYO == None:
+        global_var.NIRYO = Niryo()
+        return {"message": "niryo started"}
+    else:
+        return {"message": "niryo already started"}
 
 @router.get("/niryo/restart", tags=["niryo"])
 async def restart():

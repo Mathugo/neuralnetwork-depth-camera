@@ -10,6 +10,21 @@ from niryo_one_tcp_client import *
 import math, string, time
 from typing import Dict, Tuple
 
+# medium gripper
+CONFIG_TOOL_2 = {
+    "z_offset_conveyor": 0.055,
+    "z_offset_vanilla" : 0.12,
+    "x_offset_cam": 0.045,
+    "y_offset_cam": 0.008
+}
+# large gripper
+CONFIG_TOOL_3 = {
+    "z_offset_conveyor": 0.073,
+    "z_offset_vanilla" : 0.12,
+    "x_offset_cam": 0.045,
+    "y_offset_cam": 0.008
+}
+
 class Niryo(NiryoOneClient):
     """Custom Niryo Class herited from NiryoOneClient 
     
@@ -30,13 +45,9 @@ class Niryo(NiryoOneClient):
 
     def __init__(self, 
         ip: string="localhost", 
-        grip: RobotTool= RobotTool.GRIPPER_2, 
+        grip: RobotTool= RobotTool.GRIPPER_3, 
         arm_velocity: int=30, 
-        z_offset_conveyor: float=0.065, 
-        z_offset_vanilla :float=0.12, 
-        x_offset_cam: float=0.045,
-        y_offset_cam: float=0.008,
-        ) -> None:
+      ) -> None:
         super(Niryo, self).__init__()
         """Initialize the Niryo state
 
@@ -50,13 +61,16 @@ class Niryo(NiryoOneClient):
             ip                     (:str:`str`, optional): Ip address of the niryo server 
             grip       (:RobotTool:`RobotTool`, optional): Selected grip to use with the Niryo
             arm_velocity           (:int:`int`, optional): Arm velocity in %
-            z_offset_conveyor    (:obj:`float`, optional): See Niryo's class Attributes
-            z_offset_vanilla     (:obj:`float`, optional): See Niryo's class Attributes
-            x_offset_cam         (:obj:`float`, optional): See Niryo's class Attributes
-            y_offset_cam         (:obj:`float`, optional): See Niryo's class Attributes
-        """
+      """
         self._is_quit = False
         self.grip = grip
+
+        if grip == RobotTool.GRIPPER_2:
+            self.config = CONFIG_TOOL_2
+
+        elif grip == RobotTool.GRIPPER_3:
+            self.config = CONFIG_TOOL_3
+
         self.connect(ip)
         self.calibration()
         self.set_arm_max_velocity(arm_velocity)
@@ -70,13 +84,13 @@ class Niryo(NiryoOneClient):
         else:
             print("[NIRYO] Error: " + data)
 
-        self.stand_by = (0.10, 0.0, 0.4, 0., 1.2, 0.0)
+        self._stand_by = (0.10, 0.0, 0.4, 0., 1.2, 0.0)
         self.position = self.stand_by
         # shift between real object position in z_ia and the ground (otherwise we hit the ground with the niryo)
-        self.z_offset_vanilla = z_offset_vanilla
-        self.z_offset_conveyor = z_offset_conveyor
-        self.x_offset_cam = x_offset_cam
-        self.y_offset_cam = y_offset_cam
+        self.z_offset_vanilla = self.config["z_offset_vanilla"]
+        self.z_offset_conveyor = self.config["z_offset_conveyor"]
+        self.x_offset_cam = self.config["x_offset_cam"]
+        self.y_offset_cam = self.config["y_offset_cam"]
 
     def test_vanilla_shift(self):
         """Test if the provided offsets work"""
@@ -108,6 +122,10 @@ class Niryo(NiryoOneClient):
             print("Error: " + data)
         else:
             print("[*] Moved successfully")
+
+    @property
+    def stand_by(self):
+        return self._stand_by
 
     @property
     def x(self):
@@ -322,7 +340,7 @@ class Niryo(NiryoOneClient):
         y_ia: float, z_ia: float, 
         absolute_pos_error_x_ia: float=0.02, 
         absolute_pos_error_y_ia: float=0.02, 
-        threshold_algo_iteration: int=2,
+        threshold_algo_iteration: int=1,
         alpha: int=2) -> bool:
         """Second move to grab an object based on depthai OAK-D 2.5D camera
 
@@ -400,14 +418,19 @@ class Niryo(NiryoOneClient):
         # add the cam x offset 
         self.increment_pos_x(self.x_offset_cam+0.02)
         self.increment_pos_y(self.y_offset_cam)
-        self.set_arm_max_velocity(80)
-        print(f"[DO GRAB] offset_cam {self.x_offset_cam} z_real {round(z_real, 3)} x_i {round(x_ia,2)} y_ia {round(y_ia, 2)} z_niryo {pos[2]} y_niryo {pos[1]} x_niryo {pos[0]}")
+
+        self.set_arm_max_velocity(100)
+        print(f"[DO GRAB] offset_cam {self.x_offset_cam} z_real {round(z_real, 3)} z_ia {round(z_ia, 3)} x_i {round(x_ia,2)} y_ia {round(y_ia, 2)} z_niryo {pos[2]} y_niryo {pos[1]} x_niryo {pos[0]}")
         self.open_gripper(self.grip, 1000)
         # now we can turn the head (roll) to avoid colision with the conveyor equipment
         #pos = self.position.to_list()
         # x y z roll pitch yaw
         #pos[4] = 0.6
         #self.position = tuple(pos)
+
+        """TODO plonger en z en fonction de la profondeur pas du offset conveyor 
+        et du shift (totalement imprecis merci niryo je vous hais)"""
+
         self.increment_pos_z(z_real)
         self.close_gripper(self.grip, 200)
         self.set_arm_max_velocity(100)

@@ -87,7 +87,8 @@ def shutdown_event():
     print("[API] Shutting down the app ..")
     os.environ["MustStop"] = "True"
     global_var.app_thread.join()
-    global_var.APP.exit() 
+    if global_var.APP != None:
+        global_var.APP.exit() 
 
 def loop():
     """Main program loop"""

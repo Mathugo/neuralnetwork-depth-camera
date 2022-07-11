@@ -260,6 +260,7 @@ class ObjectDetection(object):
                 exec_time = milli_end - milli_start
                 exec_time_avg+=exec_time
                 count+=1
+                count_before_stand_by = 0
 
                 if len(detections) != 0:
                     for detection in detections:
@@ -285,13 +286,32 @@ class ObjectDetection(object):
                                     global_var.NIRYO.seq_grab_object(x, y, z)
                                     self._is_satisfying_pos = False
                                     self._did_i_do_first_move = False
-                            
-                            self.__publish_results(pos, roi)
+                                    count_before_stand_by=0
+
+                        elif self._did_i_do_first_move == True :
+                            # niryo trap in sequence 
+                            count_before_stand_by+=1
+
+                        self.__publish_results(pos, roi)
+                        if count_before_stand_by > 30:
+                            print("[NYRYO] Sequence abort, moving to standard position ..")
+                            global_var.NIRYO.position = global_var.NIRYO.stand_by
+                            self._is_satisfying_pos = False
+                            self._did_i_do_first_move = False
+                            count_before_stand_by = 0
 
                         if self._counter % 30 == 0:
                             print("[CAMERA] Exec Time {}ms Detected Label {} Raw Cam Pos x {} y {} z {}".format(exec_time, label, x, y, z))
                             #print("[CAM] Exec Time {}ms\nPos ( x {}mm ; y {}mm ; z {}mm )\nclass {}\nROI ({};{};{};{})".format(exec_time, x, y, z, label, x1, x2, y1, y2))                    
                             self.__publish_results(pos, roi)
+
+                elif len(detections) == 0 and self._did_i_do_first_move == True:
+                    print("[NYRYO] Sequence abort, moving to standard position ..")
+                    global_var.NIRYO.position = global_var.NIRYO.stand_by
+                    count_before_stand_by = 0
+                    self._is_satisfying_pos = False
+                    self._did_i_do_first_move = False
+
                 if count % 30 == 0:
                     print("[CAM] Average detection time : {} ms | FPS {}".format(round(exec_time_avg/count, 2), round(fps_avg/count, 1)))
                         
