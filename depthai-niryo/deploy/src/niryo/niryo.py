@@ -7,7 +7,7 @@ incrementing axis, rotating.
 """
 
 from niryo_one_tcp_client import *
-import math, string, time
+import math, time
 from typing import Dict, Tuple
 
 # medium gripper
@@ -44,7 +44,7 @@ class Niryo(NiryoOneClient):
     """
 
     def __init__(self, 
-        ip: string="localhost", 
+        ip: str="localhost", 
         grip: RobotTool=RobotTool.GRIPPER_3, 
         arm_velocity: int=30, 
       ) -> None:

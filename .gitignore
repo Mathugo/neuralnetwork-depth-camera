@@ -1,6 +1,8 @@
 # custom
 depthai-niryo/research/object_detection/yolov5
-
+depthai-niryo/research/labeling/depthai-experiments/gen2-yolo/device-decoding/data
+depthai-niryo/research/labeling/depthai-experiments/gen2-yolo/device-decoding/data_1
+.DS_Store
 segmentation/data-science-bowl-2018.zip
 segmentation/.vscode
 segmentation/dataset

@@ -6,7 +6,6 @@ It is used to publish the detections results to a remote broker provided by
 environments variables *MQTT_BROKER*
 """
 
-import string
 import paho.mqtt.client as mqtt #import the client1
 DEFAULT_CLIENT_NAME = "niryo"
 
@@ -22,7 +21,7 @@ class MqttClient(mqtt.Client):
         niryo_last_msg (str): last message sent in niryo topic
         cam_last_msg   (str): last message sent in camera topic
     """
-    def __init__(self, broker_addr: string, cam_topic: string, niryo_topic: string, broker_port: int, client_name: string=DEFAULT_CLIENT_NAME, verbose: bool=True) -> None:
+    def __init__(self, broker_addr: str, cam_topic: str, niryo_topic: str, broker_port: int, client_name: str=DEFAULT_CLIENT_NAME, verbose: bool=True) -> None:
         """Initialize an mqtt client for the niryo"""
         super().__init__(client_name)
         self._cam_topic = cam_topic
@@ -41,14 +40,14 @@ class MqttClient(mqtt.Client):
         except:
             print("[MQTT] Unable to connect to broker {} at port {}".format(broker_addr, broker_port))
         
-    def on_message(self, client, userdata, message: string):
+    def on_message(self, client, userdata, message: str):
         """on_message callback for the mqtt client """
         msg = str(message.payload.decode("utf-8"))
         if self._verbose:
             print("[MQTT] MSG [ {} ] FROM TOPIC [ {} ] QOS {} FLAG {}".format(msg, message.topic, message.qos, message.retain))
         self.__filter_msg(msg, message.topic)
 
-    def publish(self, topic: string, msg: string) -> None:
+    def publish(self, topic: str, msg: str) -> None:
         """Publish a message on a desired subscribed topic"""
         if self._verbose:
             print("[MQTT] Message {} published to broker".format(msg))

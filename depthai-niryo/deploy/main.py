@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 """Robotic Solution for NiryoOne and OAK-D Camera.
 
-This python script demonstrates the whole program functions which is :
+This python script demonstrates the program function which is :
     * Run a depthai object detection model 
     * Control the niryo and give him position of interest to grab detected objects
-    * Expose a restapi capable of displaying results, niryo's position and managing the app
-    * Send results to the selected mosquitto broker on diferents channels
+    * Expose a rest api capable of displaying results, niryo's position and managing the app
+    * Send results to the selected mosquitto broker on diferent channels
 
 This program is run via docker using *build_run.sh* bash script. In this case you have 
 to replace some of the given parameters in *build_run.sh*. This bash script will build and run the image 
@@ -60,6 +60,7 @@ def root():
 
 @app.get("/stop")
 def stop():
+    """Stop the app and join the thread"""
     os.environ["MustStop"] = "True"
     global_var.app_thread.join()
     global_var.APP.exit()
@@ -67,6 +68,7 @@ def stop():
 
 @app.get("/start")
 def start():
+    """Start the app and thread"""
     os.environ["MustStop"] = "False"
     global_var.app_thread = threading.Thread(target=loop, args=())
     global_var.app_thread.start()
@@ -75,7 +77,7 @@ def start():
 """API event"""
 @app.on_event("startup")
 async def startup():
-    """ code here will run on startup """
+    """Code here will run on startup """
     os.environ["MustStop"] = "False"
     global_var.app_thread = threading.Thread(target=loop, args=())
     global_var.app_thread.start()
@@ -83,7 +85,7 @@ async def startup():
 
 @app.on_event("shutdown")
 def shutdown_event():
-    """ code here will run on shutdown """
+    """Code here will run on shutdown """
     print("[API] Shutting down the app ..")
     os.environ["MustStop"] = "True"
     global_var.app_thread.join()

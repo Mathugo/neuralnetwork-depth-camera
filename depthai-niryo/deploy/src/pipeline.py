@@ -1,6 +1,5 @@
 ## Only openvino 2021 works
-from pathlib import Path, PosixPath
-import string
+from pathlib import PosixPath
 import blobconverter
 import onnx
 from os import path
@@ -20,11 +19,10 @@ class Pipeline(object):
         --scale 255 \
         --output "output1_yolov5,output2_yolov5,output3_yolov5"
         """
-        pass
     
     @staticmethod
-    def prune_onnx(self, onnx_model: string, output_dir: string="output", output_model: string="pruned.onnx") -> None:
-        """ prune yolov5 onnx model to be run on edge """
+    def prune_onnx(self, onnx_model: str, output_dir: str="output", output_model: str="pruned.onnx") -> None:
+        """Prune yolov5 onnx model to be run on edge """
         print("[*] Pruning model {} ..".format(onnx_model))
         onnx_model = onnx.load(onnx_model)
         conv_indices = []
@@ -60,8 +58,8 @@ class Pipeline(object):
         print("[*] Done")
 
     @staticmethod
-    def convert_to_blob(type: string="onnx", shaves: int=6, output_dir: string="output", onnx_model: string=None, xml_file: string=None) -> PosixPath:
-        """ convert a model (pytorch or openvino) to a blob model for the Myriad X 
+    def convert_to_blob(type: str="onnx", shaves: int=6, output_dir: str="output", onnx_model: str=None, xml_file: str=None) -> PosixPath:
+        """Convert a model (pytorch or openvino) to a blob model for the Myriad X 
         shaves: int=4 -> shaves are vector processors in DepthAI/OAK. For 1080p image, 13 SHAVES (of 16) are free for neural network stuff.
         """
         print("[!] Converting openvino model to blob format ..")
