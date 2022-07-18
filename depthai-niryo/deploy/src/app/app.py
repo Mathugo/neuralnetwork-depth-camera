@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""Main program
+
+This module link all the services (niryo, object detection, mqtt, api)
+"""
+
 from ..runtime import ObjectDetection
 from ..mqtt import MqttClient
 from ..niryo import Niryo

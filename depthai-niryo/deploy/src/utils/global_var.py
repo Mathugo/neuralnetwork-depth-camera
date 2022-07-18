@@ -1,5 +1,12 @@
-import os
+# -*- coding: utf-8 -*-
+"""Global variables
 
+Theses variables are accessible in every files, 
+they allow dynamic restart/start/stop of the app and calling the differents
+services to work together
+"""
+
+import os
 # Global variables
 def init_var():
     os.environ["MustStop"] = "False"

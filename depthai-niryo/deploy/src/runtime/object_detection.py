@@ -1,16 +1,37 @@
-import os,sys, time, threading, json
+# -*- coding: utf-8 -*-
+"""Object Detection class
+
+This module demonstrates the use of the depthai camera OAK-D 
+with inference on-device
+"""
+
+import os, time, json
 import cv2
 from pathlib import Path
-import string
-import time
 import depthai as dai
+from typing import Tuple
 from ..niryo import Niryo
 from ..mqtt import MqttClient
 from ..utils import global_var
 
 class ObjectDetection(object):
-    def __init__(self, args: dict, model_basename: string="models", config_basename: string="config", mqtt_client: MqttClient=None) -> None:
-        """ get initial config based on given files """
+    """Object detection class to perform detections with OAK-D opencv camera
+
+    This class implements methods to perform inference on-device,
+    send the result to niryo and then publish to mqtt
+    """
+    def __init__(self, args: dict, model_basename: str="models", config_basename: str="config", mqtt_client: MqttClient=None) -> None:
+        """Load model and parameter to memory 
+        
+        Get initial config based on given json file, load model using its path (/models) and
+        set opencv parameters
+
+        Arguments:
+            args:                                  (dict): Dictionnary from the argparser
+            model_basename         (:obj:`str`, optional): Folder where the models are located
+            config_basename        (:obj:`str`, optional): Folder where the json configs are located
+            mqtt_client     (:obj:`MqttClient`, optional): MQTT Client that will publish results to broker
+        """
         # parse config
         self.args = args
         self._mqtt_client = mqtt_client
@@ -56,7 +77,7 @@ class ObjectDetection(object):
         print("[*] Model {} loaded with config {}".format(os.path.basename(self.nnPath), os.path.basename(self.configPath)))
         
     def configure_pipeline(self) -> None:
-        """ configure the video pipeline """
+        """Configure the video pipeline """
         # Create pipeline
         print("\n[CAM] Setting up video pipeline ..")
         self.pipeline = dai.Pipeline()
@@ -83,7 +104,7 @@ class ObjectDetection(object):
         print("[CAM] Done ! ")
     
     def configure_properties(self) -> None:
-        """ configure camera and neural network properties for object detection """
+        """Configure camera and neural network properties for object detection """
         # Properties
         self.camRgb.setPreviewSize(self.W, self.H)
 
@@ -132,7 +153,7 @@ class ObjectDetection(object):
         self.spatialDetectionNetwork.setBoundingBoxScaleFactor(0.5)
     
     def configure_link(self) -> None:
-        """ configure link for all sources """
+        """Configure link for all sources """
 
         print("[CAM] Linking all sources ..")
         # Linking
@@ -152,7 +173,8 @@ class ObjectDetection(object):
 
     @staticmethod
     def draw(exec_time: float, rgb_frame, depth_frame, detections, labels, fps: int=0, show: bool=False, color: tuple=(255, 255, 255)):
-        """ draw detection on frame """
+        """Draw detections on frame"""
+
         height = rgb_frame.shape[0]
         width  = rgb_frame.shape[1]
         print("[*] {} detections".format(len(detections)))
@@ -195,8 +217,8 @@ class ObjectDetection(object):
             self._counter = 0
             self._startTime = current_time
 
-    def __get_roi(self, detection) -> (int, int, int, int, int):
-        """ get position from detection """
+    def __get_roi(self, detection) -> Tuple[int, int, int, int, int]:
+        """Get position from detection """
 
         x1 = int(detection.xmin * self._frame_width)
         x2 = int(detection.xmax * self._frame_width)
@@ -208,11 +230,12 @@ class ObjectDetection(object):
             label = detection.label
         return x1, x2, y1, y2, label
     
-    def __get_position(self, detection) -> (float, float, float):
+    def __get_position(self, detection) -> Tuple[float, float, float]:
+        """Get position from tuple object"""
         return round(detection.spatialCoordinates.x, 3), round(detection.spatialCoordinates.y, 3), round(detection.spatialCoordinates.z, 3)
     
     def __get_frame(self):
-        """ get frame from opencv pipeline """
+        """Get frame from opencv pipeline """
         inPreview = self._previewQueue.get()
         inDet = self._detectionNNQueue.get()
         depth = self._depthQueue.get()
@@ -221,10 +244,13 @@ class ObjectDetection(object):
         return inDet, frame, depthFrame
     
     def __publish_results(self, pos: str, roi: str):
+        """Publish results to mqtt preset topics"""
         self._mqtt_client.publish(self._mqtt_client.cam_topic+"/pos", pos)
         self._mqtt_client.publish(self._mqtt_client.cam_topic+"/roi", roi)
 
     def run(self) -> None:
+        """Main loop to perform object detection and start the grabing sequence"""
+
         print("[!] Run started")
         # Connect to device and start pipeline, Force usb2 otherwise OAK-D crash
         with dai.Device(self.pipeline, usb2Mode=True) as device:
@@ -251,7 +277,6 @@ class ObjectDetection(object):
                 milli_start = int(round(time.time() * 1000))
                 # depthFrame values are in millimeters
                 inDet, frame, depthFrame = self.__get_frame()
-                
                 detections = inDet.detections
 
                 self.__counter_end()

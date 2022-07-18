@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+"""FastAPI niryo endpoints"""
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 from src.utils import global_var
@@ -7,34 +10,19 @@ router = APIRouter()
 
 @router.get("/niryo/position", tags=["niryo"])
 def position():
+    """Get the 6 relative position from the niryo"""
     pos = global_var.NIRYO.position if global_var.NIRYO != None else "None"
     return {"message": pos}
 
 @router.post("/niryo/increment_pos/{axis}/{pos}", tags=["niryo"])
 def increment_pos(axis: str, pos: float):
+    """Increment one specific position, ex : 0.1 meter in x"""
     global_var.NIRYO.increment_pos(axis, pos)
     return {"message": "position of {} incremented by {}".format(axis, pos)}
 
-@router.post("/niryo/move_to_roi/{position}", tags=["niryo"])
-def move_to_roi(position: str):
-    print("Position wanted : "+position)
-    _roi = position.split(",")
-    try:
-        x = float(_roi[0])
-        y = float(_roi[1])
-        z = float(_roi[2])
-        print('X {} Y {} Z {}'.format(x,y,z))
-        global_var.NIRYO.move_to_roi(x, y, z)
-        return {"message": "niryo moved to ({},{},{})".format(x,y,z)}
-    except:
-        return {"set position": "error {} not a valid position, see /niryo/move_to_roi/help"}
-
-@router.get("/niryo/move_to_roi/help", tags=["niryo"])
-def move_to_roi_help(): 
-    return {"help move_to_roi": "{x,y,z} --> move to roi"}
-
 @router.get("/niryo/open_gripper", tags=["niryo"])
 def open_gripper():
+    """Open the niryo's gripper"""
     if global_var.NIRYO != None:
         global_var.NIRYO.open_gripper(global_var.NIRYO.grip, 500)
         return {"message": "gripper openned !"}
@@ -43,6 +31,7 @@ def open_gripper():
 
 @router.get("/niryo/close_gripper", tags=["niryo"])
 def close_gripper():
+    """Close the niryo's gripper"""
     if global_var.NIRYO != None:
         global_var.NIRYO.close_gripper(global_var.NIRYO.grip, 500)
         return {"message": "gripper closed !"}
@@ -51,6 +40,7 @@ def close_gripper():
 
 @router.get("/niryo/stop", tags=["niryo"])
 async def stop():
+    """Stop the niryo by shutting down the tcp server"""
     if global_var.NIRYO != None:
         global_var.NIRYO.quit()
         global_var.NIRYO = None
@@ -60,6 +50,7 @@ async def stop():
 
 @router.get("/niryo/start", tags=["niryo"])
 async def start():
+    """Start the niryo (connect to the server, calibrate and go to stand by position"""
     if global_var.NIRYO == None:
         global_var.NIRYO = Niryo()
         return {"message": "niryo started"}
@@ -68,6 +59,7 @@ async def start():
 
 @router.get("/niryo/restart", tags=["niryo"])
 async def restart():
+    """Restart niryo object"""
     if global_var.NIRYO != None: global_var.NIRYO.quit()
     global_var.NIRYO = Niryo()
     return {"message": "niryo restarted"}

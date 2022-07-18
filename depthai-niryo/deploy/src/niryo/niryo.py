@@ -45,7 +45,7 @@ class Niryo(NiryoOneClient):
 
     def __init__(self, 
         ip: string="localhost", 
-        grip: RobotTool= RobotTool.GRIPPER_3, 
+        grip: RobotTool=RobotTool.GRIPPER_3, 
         arm_velocity: int=30, 
       ) -> None:
         super(Niryo, self).__init__()
@@ -55,7 +55,7 @@ class Niryo(NiryoOneClient):
             * connect to tcp niryo server 
             * calibrate the robot with selected calibration mode
             * set arm velocity
-            * set desired tool to get good grip
+            * set desired tool
         
         Args:
             ip                     (:str:`str`, optional): Ip address of the niryo server 
@@ -75,9 +75,7 @@ class Niryo(NiryoOneClient):
         self.calibration()
         self.set_arm_max_velocity(arm_velocity)
         self.change_tool(self.grip)
-        
         self._do_roi_counter = 1
-
         status, data = self.get_pose()
         if status is True:
             self.initial_pose = data
@@ -105,9 +103,7 @@ class Niryo(NiryoOneClient):
 
     @property
     def position(self) -> Tuple:
-        """Tuple: Get the current position of the Niryo Robot (6 axis)
-        
-        The position is set from 6 distinct values representing the axis"""
+        """Tuple: Get the current position of the Niryo Robot (6 axis)"""
         status, data = self.get_pose()
         if status is True:
             return data
@@ -418,7 +414,6 @@ class Niryo(NiryoOneClient):
         # add the cam x offset 
         self.increment_pos_x(self.x_offset_cam+0.02)
         self.increment_pos_y(self.y_offset_cam)
-
         self.set_arm_max_velocity(100)
         print(f"[DO GRAB] offset_cam {self.x_offset_cam} z_real {round(z_real, 3)} z_ia {round(z_ia, 3)} x_i {round(x_ia,2)} y_ia {round(y_ia, 2)} z_niryo {pos[2]} y_niryo {pos[1]} x_niryo {pos[0]}")
         self.open_gripper(self.grip, 1000)
@@ -427,9 +422,7 @@ class Niryo(NiryoOneClient):
         # x y z roll pitch yaw
         #pos[4] = 0.6
         #self.position = tuple(pos)
-
-        """TODO plonger en z en fonction de la profondeur pas du offset conveyor 
-        et du shift (totalement imprecis merci niryo je vous hais)"""
+        """TODO plonger en z en fonction de la profondeur pas du offset conveyor"""
 
         self.increment_pos_z(z_real)
         self.close_gripper(self.grip, 200)
